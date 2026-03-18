@@ -3,57 +3,96 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet
+  StyleSheet,
+  Alert
 } from 'react-native';
-import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db, auth } from '../services/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { cancelNotification } from '../utils/notifications';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-export default function MedicationCard({ item }) {
+export default function MedicationCard({ item, navigation }) {
   const today = new Date().toISOString().split('T')[0];
 
-  const isTakenToday = item.takenDates && item.takenDates.includes(today);
-
-  const handleToggleTaken = async () => {
-    const ref = doc(db, 'medications', item.id);
-    if (isTakenToday) {
-      await updateDoc(ref, {
-        takenDates: arrayRemove(today)
-      });
-    } else {
-      await updateDoc(ref, {
-        takenDates: arrayUnion(today)
-      });
-    }
+  const isTakenAtTime = (time) => {
+    const key = `${today}_${time}`;
+    return item.takenTimes && item.takenTimes.includes(key);
   };
 
+  const handleToggleTime = async (time) => {
+    const key = `${today}_${time}`;
+    const currentTakenTimes = item.takenTimes || [];
+    let updatedTakenTimes;
+
+    if (currentTakenTimes.includes(key)) {
+      updatedTakenTimes = currentTakenTimes.filter(t => t !== key);
+    } else {
+      updatedTakenTimes = [...currentTakenTimes, key];
+    }
+
+    const ref = doc(db, 'medications', item.id);
+    await updateDoc(ref, { takenTimes: updatedTakenTimes });
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Eliminar medicamento',
+      `¿Estás seguro que deseas eliminar ${item.name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (item.notificationIds) {
+                for (const id of item.notificationIds) {
+                  await cancelNotification(id);
+                }
+              }
+              await deleteDoc(doc(db, 'medications', item.id));
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar el medicamento');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const allTakenToday = item.times && item.times.every(time => isTakenAtTime(time));
+
   return (
-    <View style={[styles.card, isTakenToday && styles.cardTaken]}>
+    <View style={[styles.card, allTakenToday && styles.cardTaken]}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.name}</Text>
-        <TouchableOpacity
-          style={[styles.takenButton, isTakenToday && styles.takenButtonActive]}
-          onPress={handleToggleTaken}
-        >
-          <Text style={styles.takenButtonText}>
-            {isTakenToday ? '✓ Tomado' : 'Marcar tomado'}
-          </Text>
-        </TouchableOpacity>
+        {allTakenToday && (
+          <View style={styles.completedBadge}>
+            <Text style={styles.completedBadgeText}>✓ Completo</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.cardText}>Para: {item.reason}</Text>
       <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
 
-      <View style={styles.timesContainer}>
-        <Text style={styles.timesLabel}>Horarios:</Text>
-        <View style={styles.timesList}>
-          {item.times && item.times.map((time, index) => (
-            <View key={index} style={styles.timeBadge}>
-              <Text style={styles.timeBadgeText}>{time}</Text>
-            </View>
-          ))}
-        </View>
+      <Text style={styles.timesLabel}>Toca la hora cuando lo tomes:</Text>
+      <View style={styles.timesList}>
+        {item.times && item.times.map((time, index) => {
+          const taken = isTakenAtTime(time);
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[styles.timeBadge, taken && styles.timeBadgeTaken]}
+              onPress={() => handleToggleTime(time)}
+            >
+              <Text style={[styles.timeBadgeText, taken && styles.timeBadgeTextTaken]}>
+                {taken ? `✓ ${time}` : time}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <View style={styles.daysContainer}>
@@ -80,6 +119,21 @@ export default function MedicationCard({ item }) {
             </View>
           ))}
         </View>
+      </View>
+
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditMedication', { medication: item })}
+        >
+          <Text style={styles.editButtonText}>Editar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDelete}
+        >
+          <Text style={styles.deleteButtonText}>Eliminar</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -110,18 +164,15 @@ const styles = StyleSheet.create({
     color: '#2d6a4f',
     flex: 1
   },
-  takenButton: {
-    backgroundColor: '#ccc',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  completedBadge: {
+    backgroundColor: '#2d6a4f',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 6
   },
-  takenButtonActive: {
-    backgroundColor: '#2d6a4f'
-  },
-  takenButtonText: {
+  completedBadgeText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold'
   },
   cardText: {
@@ -129,30 +180,37 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 2
   },
-  timesContainer: {
-    marginTop: 8
-  },
   timesLabel: {
     fontSize: 13,
     fontWeight: 'bold',
     color: '#444',
-    marginBottom: 4
+    marginTop: 10,
+    marginBottom: 6
   },
   timesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6
+    gap: 8
   },
   timeBadge: {
-    backgroundColor: '#e8f5e9',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4
+    borderWidth: 1.5,
+    borderColor: '#2d6a4f',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff'
+  },
+  timeBadgeTaken: {
+    backgroundColor: '#2d6a4f',
+    borderColor: '#2d6a4f'
   },
   timeBadgeText: {
     color: '#2d6a4f',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 'bold'
+  },
+  timeBadgeTextTaken: {
+    color: '#fff'
   },
   daysContainer: {
     marginTop: 8
@@ -181,5 +239,36 @@ const styles = StyleSheet.create({
   },
   dayBadgeTextInactive: {
     color: '#999'
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12
+  },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#2d6a4f',
+    padding: 10,
+    borderRadius: 6,
+    alignItems: 'center'
+  },
+  editButtonText: {
+    color: '#2d6a4f',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#ff4444',
+    padding: 10,
+    borderRadius: 6,
+    alignItems: 'center'
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold'
   }
 });

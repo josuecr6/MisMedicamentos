@@ -72,7 +72,7 @@ export default function HomeScreen({ navigation }) {
         <FlatList
           data={medications}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => <MedicationCard item={item} />}
+          renderItem={({ item }) => <MedicationCard item={item} navigation={navigation} />}
           contentContainerStyle={styles.list}
         />
       )}

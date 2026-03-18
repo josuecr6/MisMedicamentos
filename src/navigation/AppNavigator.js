@@ -8,6 +8,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import AddMedicationScreen from '../screens/AddMedicationScreen';
+import EditMedicationScreen from '../screens/EditMedicationScreen';
 import PersonsScreen from '../screens/PersonsScreen';
 import SharedStatusScreen from '../screens/SharedStatusScreen';
 
@@ -38,6 +39,11 @@ export default function AppNavigator() {
               name="AddMedication"
               component={AddMedicationScreen}
               options={{ title: 'Agregar medicamento' }}
+            />
+            <Stack.Screen
+              name="EditMedication"
+              component={EditMedicationScreen}
+              options={{ title: 'Editar medicamento' }}
             />
             <Stack.Screen
               name="Persons"
