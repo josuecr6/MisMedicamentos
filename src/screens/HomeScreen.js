@@ -10,8 +10,7 @@ import {
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '../services/firebase';
-
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+import MedicationCard from '../components/MedicationCard';
 
 export default function HomeScreen({ navigation }) {
   const [medications, setMedications] = useState([]);
@@ -39,51 +38,6 @@ export default function HomeScreen({ navigation }) {
     await signOut(auth);
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{item.name}</Text>
-      <Text style={styles.cardText}>Para: {item.reason}</Text>
-      <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
-
-      <View style={styles.timesContainer}>
-        <Text style={styles.timesLabel}>Horarios:</Text>
-        <View style={styles.timesList}>
-          {item.times && item.times.map((time, index) => (
-            <View key={index} style={styles.timeBadge}>
-              <Text style={styles.timeBadgeText}>{time}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.daysContainer}>
-        <Text style={styles.timesLabel}>Días:</Text>
-        <View style={styles.daysList}>
-          {DAYS.map((day, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dayBadge,
-                item.selectedDays && item.selectedDays.includes(index)
-                  ? styles.dayBadgeActive
-                  : styles.dayBadgeInactive
-              ]}
-            >
-              <Text style={[
-                styles.dayBadgeText,
-                item.selectedDays && item.selectedDays.includes(index)
-                  ? styles.dayBadgeTextActive
-                  : styles.dayBadgeTextInactive
-              ]}>
-                {day}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -103,7 +57,7 @@ export default function HomeScreen({ navigation }) {
         <FlatList
           data={medications}
           keyExtractor={item => item.id}
-          renderItem={renderItem}
+          renderItem={({ item }) => <MedicationCard item={item} />}
           contentContainerStyle={styles.list}
         />
       )}
@@ -154,77 +108,6 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: 16
-  },
-  card: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginBottom: 4
-  },
-  cardText: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 2
-  },
-  timesContainer: {
-    marginTop: 8
-  },
-  timesLabel: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#444',
-    marginBottom: 4
-  },
-  timesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6
-  },
-  timeBadge: {
-    backgroundColor: '#e8f5e9',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4
-  },
-  timeBadgeText: {
-    color: '#2d6a4f',
-    fontSize: 13,
-    fontWeight: 'bold'
-  },
-  daysContainer: {
-    marginTop: 8
-  },
-  daysList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4
-  },
-  dayBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  dayBadgeActive: {
-    backgroundColor: '#2d6a4f'
-  },
-  dayBadgeInactive: {
-    backgroundColor: '#f0f0f0'
-  },
-  dayBadgeText: {
-    fontSize: 12
-  },
-  dayBadgeTextActive: {
-    color: '#fff'
-  },
-  dayBadgeTextInactive: {
-    color: '#999'
   },
   button: {
     backgroundColor: '#2d6a4f',
