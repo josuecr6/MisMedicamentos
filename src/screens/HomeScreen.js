@@ -8,7 +8,7 @@ import {
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const handleLogout = async () => {
     await signOut(auth);
   };
@@ -17,8 +17,16 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Mis Medicamentos</Text>
       <Text style={styles.subtitle}>Bienvenido</Text>
-      <TouchableOpacity style={styles.button} onPress={handleLogout}>
-        <Text style={styles.buttonText}>Cerrar sesión</Text>
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate('AddMedication')}
+      >
+        <Text style={styles.buttonText}>+ Agregar medicamento</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
     </View>
   );
@@ -48,10 +56,24 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    width: '100%'
+    width: '100%',
+    marginBottom: 12
   },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  logoutButton: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#2d6a4f'
+  },
+  logoutText: {
+    color: '#2d6a4f',
     fontSize: 16,
     fontWeight: 'bold'
   }

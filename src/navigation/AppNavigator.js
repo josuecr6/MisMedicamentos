@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
+import AddMedicationScreen from '../screens/AddMedicationScreen';
 
 const Stack = createStackNavigator();
 
@@ -25,11 +26,18 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator>
         {user ? (
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AddMedication"
+              component={AddMedicationScreen}
+              options={{ title: 'Agregar medicamento' }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen
