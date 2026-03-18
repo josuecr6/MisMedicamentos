@@ -8,6 +8,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import AddMedicationScreen from '../screens/AddMedicationScreen';
+import PersonsScreen from '../screens/PersonsScreen';
 
 const Stack = createStackNavigator();
 
@@ -36,6 +37,11 @@ export default function AppNavigator() {
               name="AddMedication"
               component={AddMedicationScreen}
               options={{ title: 'Agregar medicamento' }}
+            />
+            <Stack.Screen
+              name="Persons"
+              component={PersonsScreen}
+              options={{ title: 'Personas' }}
             />
           </>
         ) : (

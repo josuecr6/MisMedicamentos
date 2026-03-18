@@ -47,6 +47,21 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('AddMedication')}
+        >
+          <Text style={styles.actionButtonText}>+ Agregar medicamento</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.actionButtonSecondary]}
+          onPress={() => navigation.navigate('Persons')}
+        >
+          <Text style={styles.actionButtonTextSecondary}>Personas</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#2d6a4f" style={styles.loader} />
       ) : medications.length === 0 ? (
@@ -61,13 +76,6 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={styles.list}
         />
       )}
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('AddMedication')}
-      >
-        <Text style={styles.buttonText}>+ Agregar medicamento</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -94,6 +102,33 @@ const styles = StyleSheet.create({
     color: '#2d6a4f',
     fontSize: 14
   },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#2d6a4f',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  actionButtonSecondary: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#2d6a4f'
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  actionButtonTextSecondary: {
+    color: '#2d6a4f',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
   loader: {
     flex: 1
   },
@@ -108,16 +143,5 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: 16
-  },
-  button: {
-    backgroundColor: '#2d6a4f',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold'
   }
 });
