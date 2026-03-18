@@ -8,21 +8,28 @@ import {
   Alert
 } from 'react-native';
 
-export default function LoginScreen({ navigation }) {
+export default function RegisterScreen({ navigation }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Por favor ingresa tu correo y contraseña');
+  const handleRegister = () => {
+    if (!name || !email || !password) {
+      Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
-    Alert.alert('Éxito', 'Iniciando sesión...');
+    Alert.alert('Éxito', 'Cuenta creada correctamente');
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mis Medicamentos</Text>
+      <Text style={styles.title}>Crear cuenta</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre completo"
+        value={name}
+        onChangeText={setName}
+      />
       <TextInput
         style={styles.input}
         placeholder="Correo electrónico"
@@ -38,11 +45,8 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
         secureTextEntry
       />
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Iniciar sesión</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.registerText}>¿No tienes cuenta? Regístrate</Text>
+      <TouchableOpacity style={styles.button} onPress={handleRegister}>
+        <Text style={styles.buttonText}>Registrarse</Text>
       </TouchableOpacity>
     </View>
   );
@@ -80,11 +84,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold'
-  },
-  registerText: {
-    textAlign: 'center',
-    marginTop: 16,
-    color: '#2d6a4f',
-    fontSize: 14
   }
 });
