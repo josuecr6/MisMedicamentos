@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Alert
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { cancelNotification } from '../utils/notifications';
@@ -30,6 +31,13 @@ export default function MedicationCard({ item, navigation }) {
     } else {
       updatedTakenTimes = [...currentTakenTimes, key];
     }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    updatedTakenTimes = updatedTakenTimes.filter(t => {
+      const datePart = t.split('_')[0];
+      return new Date(datePart) >= thirtyDaysAgo;
+    });
 
     const ref = doc(db, 'medications', item.id);
     await updateDoc(ref, { takenTimes: updatedTakenTimes });
@@ -65,6 +73,7 @@ export default function MedicationCard({ item, navigation }) {
 
   return (
     <View style={[styles.card, allTakenToday && styles.cardTaken]}>
+
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.name}</Text>
         {allTakenToday && (
@@ -72,6 +81,17 @@ export default function MedicationCard({ item, navigation }) {
             <Text style={styles.completedBadgeText}>✓ Completo</Text>
           </View>
         )}
+        <TouchableOpacity
+          style={styles.editIcon}
+          onPress={() => navigation.navigate('EditMedication', { medication: item })}
+        >
+          <Svg width="18" height="18" viewBox="0 0 24 24">
+            <Path
+              d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              fill="#2d6a4f"
+            />
+          </Svg>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.cardText}>Para: {item.reason}</Text>
@@ -121,20 +141,6 @@ export default function MedicationCard({ item, navigation }) {
         </View>
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => navigation.navigate('EditMedication', { medication: item })}
-        >
-          <Text style={styles.editButtonText}>Editar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={handleDelete}
-        >
-          <Text style={styles.deleteButtonText}>Eliminar</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -154,9 +160,9 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 8,
+    gap: 8
   },
   cardTitle: {
     fontSize: 18,
@@ -174,6 +180,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold'
+  },
+  editIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   cardText: {
     fontSize: 14,
@@ -239,36 +253,5 @@ const styles = StyleSheet.create({
   },
   dayBadgeTextInactive: {
     color: '#999'
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12
-  },
-  editButton: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#2d6a4f',
-    padding: 10,
-    borderRadius: 6,
-    alignItems: 'center'
-  },
-  editButtonText: {
-    color: '#2d6a4f',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: '#ff4444',
-    padding: 10,
-    borderRadius: 6,
-    alignItems: 'center'
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold'
   }
 });

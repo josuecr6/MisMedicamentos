@@ -7,7 +7,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../services/firebase';
+import { db } from '../services/firebase';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -35,27 +35,66 @@ export default function SharedStatusScreen({ route }) {
     return unsubscribe;
   }, [ownerId]);
 
+  const isTakenAtTime = (item, time) => {
+    const key = `${today}_${time}`;
+    return item.takenTimes && item.takenTimes.includes(key);
+  };
+
   const renderItem = ({ item }) => {
-    const isTakenToday = item.takenDates && item.takenDates.includes(today);
+    const allTakenToday = item.times && item.times.every(time => isTakenAtTime(item, time));
 
     return (
-      <View style={[styles.card, isTakenToday && styles.cardTaken]}>
+      <View style={[styles.card, allTakenToday && styles.cardTaken]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.name}</Text>
-          <View style={[styles.statusBadge, isTakenToday && styles.statusBadgeTaken]}>
-            <Text style={styles.statusBadgeText}>
-              {isTakenToday ? '✓ Tomado hoy' : 'Pendiente'}
-            </Text>
-          </View>
+          {allTakenToday && (
+            <View style={styles.completedBadge}>
+              <Text style={styles.completedBadgeText}>✓ Completo</Text>
+            </View>
+          )}
         </View>
+
         <Text style={styles.cardText}>Para: {item.reason}</Text>
         <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
-        <View style={styles.timesContainer}>
-          <Text style={styles.timesLabel}>Horarios:</Text>
-          <View style={styles.timesList}>
-            {item.times && item.times.map((time, index) => (
-              <View key={index} style={styles.timeBadge}>
-                <Text style={styles.timeBadgeText}>{time}</Text>
+
+        <Text style={styles.timesLabel}>Estado de hoy:</Text>
+        <View style={styles.timesList}>
+          {item.times && item.times.map((time, index) => {
+            const taken = isTakenAtTime(item, time);
+            return (
+              <View
+                key={index}
+                style={[styles.timeBadge, taken && styles.timeBadgeTaken]}
+              >
+                <Text style={[styles.timeBadgeText, taken && styles.timeBadgeTextTaken]}>
+                  {taken ? `✓ ${time}` : time}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.daysContainer}>
+          <Text style={styles.timesLabel}>Días:</Text>
+          <View style={styles.daysList}>
+            {DAYS.map((day, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.dayBadge,
+                  item.selectedDays && item.selectedDays.includes(index)
+                    ? styles.dayBadgeActive
+                    : styles.dayBadgeInactive
+                ]}
+              >
+                <Text style={[
+                  styles.dayBadgeText,
+                  item.selectedDays && item.selectedDays.includes(index)
+                    ? styles.dayBadgeTextActive
+                    : styles.dayBadgeTextInactive
+                ]}>
+                  {day}
+                </Text>
               </View>
             ))}
           </View>
@@ -144,16 +183,13 @@ const styles = StyleSheet.create({
     color: '#2d6a4f',
     flex: 1
   },
-  statusBadge: {
-    backgroundColor: '#ff4444',
+  completedBadge: {
+    backgroundColor: '#2d6a4f',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6
   },
-  statusBadgeTaken: {
-    backgroundColor: '#2d6a4f'
-  },
-  statusBadgeText: {
+  completedBadgeText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold'
@@ -163,29 +199,64 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 2
   },
-  timesContainer: {
-    marginTop: 8
-  },
   timesLabel: {
     fontSize: 13,
     fontWeight: 'bold',
     color: '#444',
-    marginBottom: 4
+    marginTop: 10,
+    marginBottom: 6
   },
   timesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6
+    gap: 8
   },
   timeBadge: {
-    backgroundColor: '#e8f5e9',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4
+    borderWidth: 1.5,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff'
+  },
+  timeBadgeTaken: {
+    backgroundColor: '#2d6a4f',
+    borderColor: '#2d6a4f'
   },
   timeBadgeText: {
-    color: '#2d6a4f',
-    fontSize: 13,
+    color: '#666',
+    fontSize: 15,
     fontWeight: 'bold'
+  },
+  timeBadgeTextTaken: {
+    color: '#fff'
+  },
+  daysContainer: {
+    marginTop: 8
+  },
+  daysList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4
+  },
+  dayBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  dayBadgeActive: {
+    backgroundColor: '#2d6a4f'
+  },
+  dayBadgeInactive: {
+    backgroundColor: '#f0f0f0'
+  },
+  dayBadgeText: {
+    fontSize: 12
+  },
+  dayBadgeTextActive: {
+    color: '#fff'
+  },
+  dayBadgeTextInactive: {
+    color: '#999'
   }
 });

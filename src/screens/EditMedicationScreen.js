@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { cancelNotification, scheduleNotification, requestPermissions } from '../utils/notifications';
 
@@ -99,6 +99,33 @@ export default function EditMedicationScreen({ route, navigation }) {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Eliminar medicamento',
+      `¿Estás seguro que deseas eliminar ${name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (medication.notificationIds) {
+                for (const id of medication.notificationIds) {
+                  await cancelNotification(id);
+                }
+              }
+              await deleteDoc(doc(db, 'medications', medication.id));
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar el medicamento');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Editar medicamento</Text>
@@ -142,6 +169,7 @@ export default function EditMedicationScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       ))}
+
       <TouchableOpacity style={styles.addTimeButton} onPress={addTime}>
         <Text style={styles.addTimeText}>+ Agregar horario</Text>
       </TouchableOpacity>
@@ -175,6 +203,13 @@ export default function EditMedicationScreen({ route, navigation }) {
         <Text style={styles.buttonText}>
           {loading ? 'Guardando...' : 'Guardar cambios'}
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={handleDelete}
+      >
+        <Text style={styles.deleteButtonText}>Eliminar medicamento</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -272,9 +307,21 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 32
+    marginBottom: 12
   },
   buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  deleteButton: {
+    backgroundColor: '#ff4444',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 32
+  },
+  deleteButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold'
