@@ -20,7 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 
-export default function PersonsScreen() {
+export default function PersonsScreen({ navigation }) {
   const [persons, setPersons] = useState([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -91,12 +91,23 @@ export default function PersonsScreen() {
         <Text style={styles.cardName}>{item.name}</Text>
         <Text style={styles.cardEmail}>{item.email}</Text>
       </View>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDeletePerson(item.id)}
-      >
-        <Text style={styles.deleteButtonText}>Eliminar</Text>
-      </TouchableOpacity>
+      <View style={styles.cardButtons}>
+        <TouchableOpacity
+          style={styles.viewButton}
+          onPress={() => navigation.navigate('SharedStatus', {
+            ownerId: auth.currentUser.uid,
+            ownerName: 'mis'
+          })}
+        >
+          <Text style={styles.viewButtonText}>Ver estado</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDeletePerson(item.id)}
+        >
+          <Text style={styles.deleteButtonText}>Eliminar</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -204,8 +215,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
@@ -213,7 +222,7 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   cardInfo: {
-    flex: 1
+    marginBottom: 12
   },
   cardName: {
     fontSize: 16,
@@ -225,11 +234,29 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2
   },
+  cardButtons: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  viewButton: {
+    flex: 1,
+    backgroundColor: '#2d6a4f',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center'
+  },
+  viewButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 'bold'
+  },
   deleteButton: {
     backgroundColor: '#ff4444',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6
+    borderRadius: 6,
+    alignItems: 'center'
   },
   deleteButtonText: {
     color: '#fff',

@@ -9,6 +9,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import AddMedicationScreen from '../screens/AddMedicationScreen';
 import PersonsScreen from '../screens/PersonsScreen';
+import SharedStatusScreen from '../screens/SharedStatusScreen';
 
 const Stack = createStackNavigator();
 
@@ -42,6 +43,11 @@ export default function AppNavigator() {
               name="Persons"
               component={PersonsScreen}
               options={{ title: 'Personas' }}
+            />
+            <Stack.Screen
+              name="SharedStatus"
+              component={SharedStatusScreen}
+              options={{ title: 'Estado de medicamentos' }}
             />
           </>
         ) : (
