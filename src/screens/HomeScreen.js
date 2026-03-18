@@ -1,32 +1,79 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet
+  StyleSheet,
+  FlatList,
+  ActivityIndicator
 } from 'react-native';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 
 export default function HomeScreen({ navigation }) {
+  const [medications, setMedications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'medications'),
+      where('userId', '==', auth.currentUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setMedications(list);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
   const handleLogout = async () => {
     await signOut(auth);
   };
 
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{item.name}</Text>
+      <Text style={styles.cardText}>Para: {item.reason}</Text>
+      <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mis Medicamentos</Text>
-      <Text style={styles.subtitle}>Bienvenido</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Mis Medicamentos</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.logoutText}>Salir</Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#2d6a4f" style={styles.loader} />
+      ) : medications.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No tienes medicamentos agregados</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={medications}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+        />
+      )}
 
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate('AddMedication')}
       >
         <Text style={styles.buttonText}>+ Agregar medicamento</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
     </View>
   );
@@ -35,45 +82,66 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#fff',
+    padding: 24
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff'
+    marginTop: 40,
+    marginBottom: 24
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2d6a4f'
+  },
+  logoutText: {
+    color: '#2d6a4f',
+    fontSize: 14
+  },
+  loader: {
+    flex: 1
+  },
+  empty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  emptyText: {
+    color: '#999',
+    fontSize: 16
+  },
+  list: {
+    paddingBottom: 16
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12
+  },
+  cardTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#2d6a4f',
-    marginBottom: 8
+    marginBottom: 4
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32
+  cardText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 2
   },
   button: {
     backgroundColor: '#2d6a4f',
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 12
+    alignItems: 'center'
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  logoutButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#2d6a4f'
-  },
-  logoutText: {
-    color: '#2d6a4f',
     fontSize: 16,
     fontWeight: 'bold'
   }
