@@ -7,18 +7,34 @@ import {
   StyleSheet,
   Alert
 } from 'react-native';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!name || !email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
-    Alert.alert('Éxito', 'Cuenta creada correctamente');
+    if (password.length < 6) {
+      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    try {
+      setLoading(true);
+      await createUserWithEmailAndPassword(auth, email, password);
+      Alert.alert('Éxito', 'Cuenta creada correctamente');
+      navigation.navigate('Login');
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,8 +61,17 @@ export default function RegisterScreen({ navigation }) {
         onChangeText={setPassword}
         secureTextEntry
       />
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Registrarse</Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleRegister}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? 'Creando cuenta...' : 'Registrarse'}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+        <Text style={styles.loginText}>¿Ya tienes cuenta? Inicia sesión</Text>
       </TouchableOpacity>
     </View>
   );
@@ -84,5 +109,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold'
+  },
+  loginText: {
+    textAlign: 'center',
+    marginTop: 16,
+    color: '#2d6a4f',
+    fontSize: 14
   }
 });

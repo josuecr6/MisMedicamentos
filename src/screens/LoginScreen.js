@@ -7,17 +7,27 @@ import {
   StyleSheet,
   Alert
 } from 'react-native';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor ingresa tu correo y contraseña');
       return;
     }
-    Alert.alert('Éxito', 'Iniciando sesión...');
+    try {
+      setLoading(true);
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      Alert.alert('Error', 'Correo o contraseña incorrectos');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,8 +48,14 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
         secureTextEntry
       />
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Iniciar sesión</Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate('Register')}>
         <Text style={styles.registerText}>¿No tienes cuenta? Regístrate</Text>
