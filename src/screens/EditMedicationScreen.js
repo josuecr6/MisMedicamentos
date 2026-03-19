@@ -11,6 +11,7 @@ import {
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { cancelNotification, scheduleNotification, requestPermissions } from '../utils/notifications';
+import TimePicker from '../components/TimePicker';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -20,12 +21,12 @@ export default function EditMedicationScreen({ route, navigation }) {
   const [name, setName] = useState(medication.name);
   const [reason, setReason] = useState(medication.reason);
   const [doctor, setDoctor] = useState(medication.doctor);
-  const [times, setTimes] = useState(medication.times || ['08:00']);
+  const [times, setTimes] = useState(medication.times || ['08:00 AM']);
   const [selectedDays, setSelectedDays] = useState(medication.selectedDays || [0,1,2,3,4,5,6]);
   const [loading, setLoading] = useState(false);
 
   const addTime = () => {
-    setTimes([...times, '08:00']);
+    setTimes([...times, '08:00 AM']);
   };
 
   const updateTime = (index, value) => {
@@ -54,6 +55,14 @@ export default function EditMedicationScreen({ route, navigation }) {
     }
   };
 
+  const convertTo24Hour = (time) => {
+    const [timePart, period] = time.split(' ');
+    let [hour, minute] = timePart.split(':').map(Number);
+    if (period === 'AM' && hour === 12) hour = 0;
+    if (period === 'PM' && hour !== 12) hour += 12;
+    return { hour, minute };
+  };
+
   const handleSave = async () => {
     if (!name || !reason || !doctor) {
       Alert.alert('Error', 'Por favor completa todos los campos');
@@ -76,7 +85,7 @@ export default function EditMedicationScreen({ route, navigation }) {
 
       const notificationIds = [];
       for (const time of times) {
-        const [hour, minute] = time.split(':').map(Number);
+        const { hour, minute } = convertTo24Hour(time);
         const id = await scheduleNotification(name, hour, minute, selectedDays);
         notificationIds.push(id);
       }
@@ -154,13 +163,12 @@ export default function EditMedicationScreen({ route, navigation }) {
       <Text style={styles.label}>Horarios</Text>
       {times.map((time, index) => (
         <View key={index} style={styles.timeRow}>
-          <TextInput
-            style={styles.timeInput}
-            value={time}
-            onChangeText={(value) => updateTime(index, value)}
-            placeholder="HH:MM"
-            keyboardType="numbers-and-punctuation"
-          />
+          <View style={styles.timePickerWrapper}>
+            <TimePicker
+              value={time}
+              onChange={(value) => updateTime(index, value)}
+            />
+          </View>
           <TouchableOpacity
             style={styles.removeButton}
             onPress={() => removeTime(index)}
@@ -248,13 +256,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 8
   },
-  timeInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16
+  timePickerWrapper: {
+    flex: 1
   },
   removeButton: {
     backgroundColor: '#ff4444',
