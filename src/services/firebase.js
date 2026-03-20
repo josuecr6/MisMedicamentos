@@ -3,13 +3,27 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDrw8Utihu20qd2QSDshGrDCIouCAfK6HI",
-  authDomain: "mismedicamentos.firebaseapp.com",
-  projectId: "mismedicamentos",
-  storageBucket: "mismedicamentos.firebasestorage.app",
-  messagingSenderId: "796320688489",
-  appId: "1:796320688489:web:ba1b2acf52be331040f5f8"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
+
+if (__DEV__) {
+  const missing = Object.entries(firebaseConfig)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+
+  if (missing.length > 0) {
+    console.warn(
+      '[Firebase] Variables de entorno faltantes:',
+      missing.join(', '),
+      '\nCopia .env.example a .env y rellena los valores.'
+    );
+  }
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
