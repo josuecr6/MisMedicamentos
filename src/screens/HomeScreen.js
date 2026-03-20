@@ -14,6 +14,7 @@ import MedicationCard from '../components/MedicationCard';
 export default function HomeScreen({ navigation }) {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     const q = query(
@@ -33,10 +34,25 @@ export default function HomeScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
+  const handleMenuOption = (screen) => {
+    setMenuVisible(false);
+    navigation.navigate(screen);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Medicamentos</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setMenuVisible(!menuVisible)}
+          >
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Mis Medicamentos</Text>
+        </View>
         <TouchableOpacity
           style={styles.profileButton}
           onPress={() => navigation.navigate('Profile')}
@@ -45,26 +61,37 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('AddMedication')}
-        >
-          <Text style={styles.actionButtonText}>+ Agregar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.actionButtonSecondary]}
-          onPress={() => navigation.navigate('Persons')}
-        >
-          <Text style={styles.actionButtonTextSecondary}>Accesos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.actionButtonSecondary]}
-          onPress={() => navigation.navigate('SharedWithMe')}
-        >
-          <Text style={styles.actionButtonTextSecondary}>Compartido</Text>
-        </TouchableOpacity>
-      </View>
+      {menuVisible && (
+        <>
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            onPress={() => setMenuVisible(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuOption('Persons')}
+            >
+              <Text style={styles.menuItemText}>👥 Gestionar accesos</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuOption('SharedWithMe')}
+            >
+              <Text style={styles.menuItemText}>🔗 Compartido conmigo</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => navigation.navigate('AddMedication')}
+      >
+        <Text style={styles.addButtonText}>+ Agregar medicamento</Text>
+      </TouchableOpacity>
 
       {loading ? (
         <ActivityIndicator size="large" color="#2d6a4f" style={styles.loader} />
@@ -88,14 +115,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 24
+    padding: 24,
+    zIndex: 1
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 40,
-    marginBottom: 24
+    marginBottom: 8
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
   },
   title: {
     fontSize: 24,
@@ -114,31 +147,66 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold'
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#2d6a4f',
-    padding: 12,
+  menuButton: {
+    width: 36,
+    height: 36,
     borderRadius: 8,
-    alignItems: 'center'
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    padding: 8
   },
-  actionButtonSecondary: {
+  menuLine: {
+    width: 18,
+    height: 2,
+    backgroundColor: '#2d6a4f',
+    borderRadius: 2
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 998
+  },
+  menuContainer: {
+    position: 'absolute',
+    top: 80,
+    left: 24,
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#2d6a4f'
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: '#ccc',
+    elevation: 10,
+    zIndex: 999,
+    minWidth: 200
   },
-  actionButtonText: {
+  menuItem: {
+    padding: 16
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500'
+  },
+  menuDivider: {
+    height: 0.5,
+    backgroundColor: '#eee',
+    marginHorizontal: 16
+  },
+  addButton: {
+    backgroundColor: '#2d6a4f',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 16
+  },
+  addButtonText: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold'
-  },
-  actionButtonTextSecondary: {
-    color: '#2d6a4f',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 'bold'
   },
   loader: {

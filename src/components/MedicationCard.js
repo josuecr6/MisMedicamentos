@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,14 @@ import { cancelNotification } from '../utils/notifications';
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 export default function MedicationCard({ item, navigation }) {
-  const today = new Date().toISOString().split('T')[0];
+  const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setToday(new Date().toISOString().split('T')[0]);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const isTakenAtTime = (time) => {
     const key = `${today}_${time}`;
