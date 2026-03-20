@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Svg, { Path } from 'react-native-svg';
 
 import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../utils/theme';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -19,16 +20,6 @@ import ReportsScreen from '../screens/ReportsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
-
-const COLORS = {
-  bg: '#1c1c1e',
-  secondary: '#2c2c2e',
-  surface: '#3a3a3c',
-  accent: '#ff9f0a',
-  orange: '#ff6b35',
-  text: '#ffffff',
-  textMuted: '#8e8e93'
-};
 
 function HomeIcon({ color }) {
   return (
@@ -86,16 +77,12 @@ function BottomTabs({ navigation }) {
       <Tab.Screen
         name="Inicio"
         component={HomeScreen}
-        options={{
-          tabBarIcon: ({ color }) => <HomeIcon color={color} />
-        }}
+        options={{ tabBarIcon: ({ color }) => <HomeIcon color={color} /> }}
       />
       <Tab.Screen
         name="Accesos"
         component={PersonsScreen}
-        options={{
-          tabBarIcon: ({ color }) => <PersonsIcon color={color} />
-        }}
+        options={{ tabBarIcon: ({ color }) => <PersonsIcon color={color} /> }}
       />
       <Tab.Screen
         name="Agregar"
@@ -109,16 +96,12 @@ function BottomTabs({ navigation }) {
       <Tab.Screen
         name="Compartido"
         component={SharedWithMeScreen}
-        options={{
-          tabBarIcon: ({ color }) => <SharedIcon color={color} />
-        }}
+        options={{ tabBarIcon: ({ color }) => <SharedIcon color={color} /> }}
       />
       <Tab.Screen
         name="Perfil"
         component={ProfileScreen}
-        options={{
-          tabBarIcon: ({ color }) => <ProfileIcon color={color} />
-        }}
+        options={{ tabBarIcon: ({ color }) => <ProfileIcon color={color} /> }}
       />
     </Tab.Navigator>
   );
@@ -188,10 +171,7 @@ export default function AppNavigator() {
       >
         {user ? (
           <>
-            <Stack.Screen
-              name="Main"
-              options={{ headerShown: false }}
-            >
+            <Stack.Screen name="Main" options={{ headerShown: false }}>
               {(props) => <BottomTabs {...props} />}
             </Stack.Screen>
             <Stack.Screen
