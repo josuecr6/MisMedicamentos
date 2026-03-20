@@ -11,9 +11,10 @@ import {
 import { collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { requestPermissions, scheduleNotification } from '../utils/notifications';
+import { COLORS, DAYS } from '../utils/theme';
+import { commonStyles } from '../utils/commonStyles';
+import { convertTo24Hour, sortTimes } from '../utils/timeUtils';
 import TimePicker from '../components/TimePicker';
-
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 export default function AddMedicationScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -23,22 +24,7 @@ export default function AddMedicationScreen({ navigation }) {
   const [selectedDays, setSelectedDays] = useState([0, 1, 2, 3, 4, 5, 6]);
   const [loading, setLoading] = useState(false);
 
-  const sortTimes = (timesArray) => {
-    return timesArray.sort((a, b) => {
-      const toMinutes = (time) => {
-        const [timePart, period] = time.split(' ');
-        let [hour, minute] = timePart.split(':').map(Number);
-        if (period === 'AM' && hour === 12) hour = 0;
-        if (period === 'PM' && hour !== 12) hour += 12;
-        return hour * 60 + minute;
-      };
-      return toMinutes(a) - toMinutes(b);
-    });
-  };
-
-  const addTime = () => {
-    setTimes(sortTimes([...times, '08:00 AM']));
-  };
+  const addTime = () => setTimes(sortTimes([...times, '08:00 AM']));
 
   const updateTime = (index, value) => {
     const updated = [...times];
@@ -64,14 +50,6 @@ export default function AddMedicationScreen({ navigation }) {
     } else {
       setSelectedDays([...selectedDays, dayIndex]);
     }
-  };
-
-  const convertTo24Hour = (time) => {
-    const [timePart, period] = time.split(' ');
-    let [hour, minute] = timePart.split(':').map(Number);
-    if (period === 'AM' && hour === 12) hour = 0;
-    if (period === 'PM' && hour !== 12) hour += 12;
-    return { hour, minute };
   };
 
   const handleSave = async () => {
@@ -115,34 +93,37 @@ export default function AddMedicationScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Agregar medicamento</Text>
+    <ScrollView style={commonStyles.scrollContainer}>
+      <Text style={commonStyles.title}>Agregar medicamento</Text>
 
-      <Text style={styles.label}>Nombre del medicamento</Text>
+      <Text style={commonStyles.label}>Nombre del medicamento</Text>
       <TextInput
-        style={styles.input}
+        style={commonStyles.input}
         placeholder="Ej: Paracetamol"
+        placeholderTextColor={COLORS.textMuted}
         value={name}
         onChangeText={setName}
       />
 
-      <Text style={styles.label}>¿Para qué fue recetado?</Text>
+      <Text style={commonStyles.label}>¿Para qué fue recetado?</Text>
       <TextInput
-        style={styles.input}
+        style={commonStyles.input}
         placeholder="Ej: Dolor de cabeza"
+        placeholderTextColor={COLORS.textMuted}
         value={reason}
         onChangeText={setReason}
       />
 
-      <Text style={styles.label}>Doctor que lo recetó</Text>
+      <Text style={commonStyles.label}>Doctor que lo recetó</Text>
       <TextInput
-        style={styles.input}
+        style={commonStyles.input}
         placeholder="Ej: Dr. Juan Pérez"
+        placeholderTextColor={COLORS.textMuted}
         value={doctor}
         onChangeText={setDoctor}
       />
 
-      <Text style={styles.label}>Horarios</Text>
+      <Text style={commonStyles.label}>Horarios</Text>
       {times.map((time, index) => (
         <View key={index} style={styles.timeRow}>
           <View style={styles.timePickerWrapper}>
@@ -164,7 +145,7 @@ export default function AddMedicationScreen({ navigation }) {
         <Text style={styles.addTimeText}>+ Agregar horario</Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>Días de la semana</Text>
+      <Text style={commonStyles.label}>Días de la semana</Text>
       <View style={styles.daysRow}>
         {DAYS.map((day, index) => (
           <TouchableOpacity
@@ -186,11 +167,11 @@ export default function AddMedicationScreen({ navigation }) {
       </View>
 
       <TouchableOpacity
-        style={styles.button}
+        style={commonStyles.button}
         onPress={handleSave}
         disabled={loading}
       >
-        <Text style={styles.buttonText}>
+        <Text style={commonStyles.buttonText}>
           {loading ? 'Guardando...' : 'Guardar medicamento'}
         </Text>
       </TouchableOpacity>
@@ -199,32 +180,6 @@ export default function AddMedicationScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff'
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginBottom: 24,
-    marginTop: 16
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#444',
-    marginBottom: 6
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16
-  },
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,24 +190,24 @@ const styles = StyleSheet.create({
     flex: 1
   },
   removeButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: COLORS.danger,
     padding: 12,
     borderRadius: 8
   },
   removeButtonText: {
-    color: '#fff',
+    color: COLORS.text,
     fontSize: 14
   },
   addTimeButton: {
     borderWidth: 1,
-    borderColor: '#2d6a4f',
+    borderColor: COLORS.accent,
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
     marginBottom: 16
   },
   addTimeText: {
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontSize: 14
   },
   daysRow: {
@@ -263,33 +218,23 @@ const styles = StyleSheet.create({
   },
   dayButton: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: COLORS.surface,
     borderRadius: 8,
     padding: 10,
     minWidth: 44,
-    alignItems: 'center'
+    alignItems: 'center',
+    backgroundColor: COLORS.secondary
   },
   dayButtonActive: {
-    backgroundColor: '#2d6a4f',
-    borderColor: '#2d6a4f'
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent
   },
   dayText: {
-    color: '#444',
+    color: COLORS.textMuted,
     fontSize: 13
   },
   dayTextActive: {
-    color: '#fff'
-  },
-  button: {
-    backgroundColor: '#2d6a4f',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 32
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: COLORS.bg,
     fontWeight: 'bold'
   }
 });

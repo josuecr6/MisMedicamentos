@@ -12,6 +12,8 @@ import {
 import { signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import { COLORS } from '../utils/theme';
+import { commonStyles } from '../utils/commonStyles';
 
 export default function ProfileScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -71,10 +73,7 @@ export default function ProfileScreen({ navigation }) {
     }
     try {
       setSavingPassword(true);
-      const credential = EmailAuthProvider.credential(
-        auth.currentUser.email,
-        currentPassword
-      );
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
       await updatePassword(auth.currentUser, newPassword);
       setCurrentPassword('');
@@ -109,15 +108,15 @@ export default function ProfileScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#2d6a4f" />
+      <View style={[commonStyles.container, styles.loader]}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Mi perfil</Text>
+    <ScrollView style={commonStyles.scrollContainer}>
+      <Text style={commonStyles.title}>Mi perfil</Text>
 
       <TouchableOpacity
         style={styles.reportsButton}
@@ -127,165 +126,107 @@ export default function ProfileScreen({ navigation }) {
       </TouchableOpacity>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Información personal</Text>
-        <Text style={styles.label}>Nombre</Text>
+        <Text style={commonStyles.sectionTitle}>Información personal</Text>
+        <Text style={commonStyles.label}>Nombre</Text>
         <TextInput
-          style={styles.input}
+          style={commonStyles.input}
           value={name}
           onChangeText={setName}
           placeholder="Tu nombre"
+          placeholderTextColor={COLORS.textMuted}
         />
-        <Text style={styles.label}>Correo electrónico</Text>
+        <Text style={commonStyles.label}>Correo electrónico</Text>
         <TextInput
-          style={[styles.input, styles.inputDisabled]}
+          style={[commonStyles.input, commonStyles.inputDisabled]}
           value={email}
           editable={false}
         />
         <TouchableOpacity
-          style={styles.button}
+          style={commonStyles.button}
           onPress={handleSaveName}
           disabled={savingName}
         >
-          <Text style={styles.buttonText}>
+          <Text style={commonStyles.buttonText}>
             {savingName ? 'Guardando...' : 'Guardar nombre'}
           </Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
-        <Text style={styles.label}>Contraseña actual</Text>
+        <Text style={commonStyles.sectionTitle}>Cambiar contraseña</Text>
+        <Text style={commonStyles.label}>Contraseña actual</Text>
         <TextInput
-          style={styles.input}
+          style={commonStyles.input}
           value={currentPassword}
           onChangeText={setCurrentPassword}
           secureTextEntry
           autoCapitalize="none"
           placeholder="Contraseña actual"
+          placeholderTextColor={COLORS.textMuted}
         />
-        <Text style={styles.label}>Nueva contraseña</Text>
+        <Text style={commonStyles.label}>Nueva contraseña</Text>
         <TextInput
-          style={styles.input}
+          style={commonStyles.input}
           value={newPassword}
           onChangeText={setNewPassword}
           secureTextEntry
           autoCapitalize="none"
           placeholder="Nueva contraseña"
+          placeholderTextColor={COLORS.textMuted}
         />
-        <Text style={styles.label}>Confirmar nueva contraseña</Text>
+        <Text style={commonStyles.label}>Confirmar nueva contraseña</Text>
         <TextInput
-          style={styles.input}
+          style={commonStyles.input}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
           autoCapitalize="none"
           placeholder="Confirmar nueva contraseña"
+          placeholderTextColor={COLORS.textMuted}
         />
         <TouchableOpacity
-          style={styles.button}
+          style={commonStyles.button}
           onPress={handleChangePassword}
           disabled={savingPassword}
         >
-          <Text style={styles.buttonText}>
+          <Text style={commonStyles.buttonText}>
             {savingPassword ? 'Actualizando...' : 'Cambiar contraseña'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-      >
-        <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+      <TouchableOpacity style={commonStyles.deleteButton} onPress={handleLogout}>
+        <Text style={commonStyles.deleteButtonText}>Cerrar sesión</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 24
-  },
   loader: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center'
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginTop: 40,
-    marginBottom: 24
-  },
   reportsButton: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: COLORS.secondary,
     borderWidth: 1,
-    borderColor: '#2d6a4f',
+    borderColor: COLORS.accent,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginBottom: 24
   },
   reportsButtonText: {
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontSize: 15,
     fontWeight: 'bold'
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 12
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginBottom: 16
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#444',
-    marginBottom: 6
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16
-  },
-  inputDisabled: {
-    backgroundColor: '#f5f5f5',
-    color: '#999'
-  },
-  button: {
-    backgroundColor: '#2d6a4f',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold'
-  },
-  logoutButton: {
-    backgroundColor: '#ff4444',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 40
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold'
+    borderColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: COLORS.secondary
   }
 });

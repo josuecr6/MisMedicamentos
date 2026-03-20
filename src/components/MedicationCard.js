@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { doc, updateDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
-import { db, auth } from '../services/firebase';
-import { cancelNotification } from '../utils/notifications';
-
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { deleteMedication } from '../services/medicationService';
+import { COLORS, DAYS } from '../utils/theme';
+import { hasTimePassed } from '../utils/timeUtils';
+import DayBadges from './DayBadges';
 
 export default function MedicationCard({ item, navigation }) {
   const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
@@ -26,18 +21,6 @@ export default function MedicationCard({ item, navigation }) {
   const isTakenAtTime = (time) => {
     const key = `${today}_${time}`;
     return item.takenTimes && item.takenTimes.includes(key);
-  };
-
-  const hasTimePassed = (time) => {
-    const now = new Date();
-    const timePart = time.split(' ')[0];
-    const period = time.split(' ')[1];
-    let [hour, minute] = timePart.split(':').map(Number);
-    if (period === 'AM' && hour === 12) hour = 0;
-    if (period === 'PM' && hour !== 12) hour += 12;
-    const eventTime = new Date();
-    eventTime.setHours(hour, minute, 0, 0);
-    return now > eventTime;
   };
 
   const getTimeBadgeStyle = (time) => {
@@ -74,27 +57,13 @@ export default function MedicationCard({ item, navigation }) {
       return new Date(datePart) >= thirtyDaysAgo;
     });
 
-    const ref = doc(db, 'medications', item.id);
-    await updateDoc(ref, { takenTimes: updatedTakenTimes });
-  };
-
-  const saveToHistory = async () => {
-    await addDoc(collection(db, 'medicationHistory'), {
-      name: item.name,
-      reason: item.reason,
-      doctor: item.doctor,
-      times: item.times,
-      selectedDays: item.selectedDays,
-      createdAt: item.createdAt,
-      deletedAt: new Date(),
-      userId: auth.currentUser.uid
-    });
+    await updateDoc(doc(db, 'medications', item.id), { takenTimes: updatedTakenTimes });
   };
 
   const handleDelete = () => {
     Alert.alert(
       'Eliminar medicamento',
-      `¿Estás seguro que deseas eliminar ${item.name}?`,
+      `¿Qué deseas hacer con ${item.name}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -102,12 +71,7 @@ export default function MedicationCard({ item, navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              if (item.notificationIds) {
-                for (const id of item.notificationIds) {
-                  await cancelNotification(id);
-                }
-              }
-              await deleteDoc(doc(db, 'medications', item.id));
+              await deleteMedication(item, false);
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
@@ -117,13 +81,7 @@ export default function MedicationCard({ item, navigation }) {
           text: 'Guardar en historial',
           onPress: async () => {
             try {
-              if (item.notificationIds) {
-                for (const id of item.notificationIds) {
-                  await cancelNotification(id);
-                }
-              }
-              await saveToHistory();
-              await deleteDoc(doc(db, 'medications', item.id));
+              await deleteMedication(item, true);
               Alert.alert('Éxito', 'Medicamento guardado en el historial');
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
@@ -138,7 +96,6 @@ export default function MedicationCard({ item, navigation }) {
 
   return (
     <View style={[styles.card, allTakenToday && styles.cardTaken]}>
-
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.name}</Text>
         {allTakenToday && (
@@ -153,7 +110,7 @@ export default function MedicationCard({ item, navigation }) {
           <Svg width="18" height="18" viewBox="0 0 24 24">
             <Path
               d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-              fill="#2d6a4f"
+              fill={COLORS.accent}
             />
           </Svg>
         </TouchableOpacity>
@@ -180,32 +137,8 @@ export default function MedicationCard({ item, navigation }) {
         })}
       </View>
 
-      <View style={styles.daysContainer}>
-        <Text style={styles.timesLabel}>Días:</Text>
-        <View style={styles.daysList}>
-          {DAYS.map((day, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dayBadge,
-                item.selectedDays && item.selectedDays.includes(index)
-                  ? styles.dayBadgeActive
-                  : styles.dayBadgeInactive
-              ]}
-            >
-              <Text style={[
-                styles.dayBadgeText,
-                item.selectedDays && item.selectedDays.includes(index)
-                  ? styles.dayBadgeTextActive
-                  : styles.dayBadgeTextInactive
-              ]}>
-                {day}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
+      <Text style={styles.timesLabel}>Días:</Text>
+      <DayBadges selectedDays={item.selectedDays} />
     </View>
   );
 }
@@ -213,15 +146,15 @@ export default function MedicationCard({ item, navigation }) {
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: COLORS.surface,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: '#fff'
+    backgroundColor: COLORS.secondary
   },
   cardTaken: {
-    borderColor: '#2d6a4f',
-    backgroundColor: '#f0faf4'
+    borderColor: COLORS.success,
+    backgroundColor: '#1a2e1a'
   },
   cardHeader: {
     flexDirection: 'row',
@@ -232,17 +165,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2d6a4f',
+    color: COLORS.text,
     flex: 1
   },
   completedBadge: {
-    backgroundColor: '#2d6a4f',
+    backgroundColor: COLORS.success,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6
   },
   completedBadgeText: {
-    color: '#fff',
+    color: COLORS.bg,
     fontSize: 12,
     fontWeight: 'bold'
   },
@@ -250,19 +183,19 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center'
   },
   cardText: {
     fontSize: 14,
-    color: '#555',
+    color: COLORS.textMuted,
     marginBottom: 2
   },
   timesLabel: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#444',
+    color: COLORS.textMuted,
     marginTop: 10,
     marginBottom: 6
   },
@@ -273,69 +206,41 @@ const styles = StyleSheet.create({
   },
   timeBadgeUpcoming: {
     borderWidth: 1.5,
-    borderColor: '#ccc',
+    borderColor: COLORS.surface,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fff'
+    backgroundColor: COLORS.surface
   },
   timeBadgePending: {
     borderWidth: 2,
-    borderColor: '#d32f2f',
+    borderColor: COLORS.danger,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#ffcdd2'
+    backgroundColor: '#2d1a1a'
   },
   timeBadgeTaken: {
     borderWidth: 1.5,
-    borderColor: '#2d6a4f',
+    borderColor: COLORS.success,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#2d6a4f'
+    backgroundColor: '#1a2e1a'
   },
   timeBadgeTextUpcoming: {
-    color: '#666',
+    color: COLORS.text,
     fontSize: 15,
     fontWeight: 'bold'
   },
   timeBadgeTextPending: {
-    color: '#b71c1c',
+    color: COLORS.danger,
     fontSize: 15,
     fontWeight: 'bold'
   },
   timeBadgeTextTaken: {
-    color: '#fff',
+    color: COLORS.success,
     fontSize: 15,
     fontWeight: 'bold'
-  },
-  daysContainer: {
-    marginTop: 8
-  },
-  daysList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4
-  },
-  dayBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  dayBadgeActive: {
-    backgroundColor: '#2d6a4f'
-  },
-  dayBadgeInactive: {
-    backgroundColor: '#f0f0f0'
-  },
-  dayBadgeText: {
-    fontSize: 12
-  },
-  dayBadgeTextActive: {
-    color: '#fff'
-  },
-  dayBadgeTextInactive: {
-    color: '#999'
   }
 });

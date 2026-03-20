@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
+import { COLORS } from '../utils/theme';
+import { commonStyles } from '../utils/commonStyles';
 
 export default function SharedWithMeScreen({ navigation }) {
   const [sharedList, setSharedList] = useState([]);
@@ -19,22 +21,17 @@ export default function SharedWithMeScreen({ navigation }) {
       collection(db, 'sharedAccess'),
       where('guestId', '==', auth.currentUser.uid)
     );
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSharedList(list);
       setLoading(false);
     });
-
     return unsubscribe;
   }, []);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.card}
+      style={commonStyles.card}
       onPress={() => navigation.navigate('SharedStatus', {
         ownerId: item.ownerId,
         ownerName: item.ownerEmail
@@ -49,17 +46,17 @@ export default function SharedWithMeScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Compartido conmigo</Text>
-      <Text style={styles.subtitle}>
+    <View style={commonStyles.container}>
+      <Text style={commonStyles.title}>Compartido conmigo</Text>
+      <Text style={commonStyles.subtitle}>
         Estas personas te dieron acceso a ver sus medicamentos
       </Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2d6a4f" />
+        <ActivityIndicator size="large" color={COLORS.accent} />
       ) : sharedList.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Nadie ha compartido contigo aún</Text>
+        <View style={commonStyles.empty}>
+          <Text style={commonStyles.emptyText}>Nadie ha compartido contigo aún</Text>
         </View>
       ) : (
         <FlatList
@@ -74,43 +71,8 @@ export default function SharedWithMeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 24
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginTop: 40,
-    marginBottom: 8
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 24
-  },
-  empty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  emptyText: {
-    color: '#999',
-    fontSize: 16
-  },
   list: {
     paddingBottom: 16
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12
   },
   cardInfo: {
     flex: 1
@@ -118,16 +80,16 @@ const styles = StyleSheet.create({
   cardEmail: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333'
+    color: COLORS.text
   },
   cardHint: {
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
     marginTop: 2
   },
   arrow: {
     fontSize: 20,
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontWeight: 'bold'
   }
 });

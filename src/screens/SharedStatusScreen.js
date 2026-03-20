@@ -8,8 +8,9 @@ import {
 } from 'react-native';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
-
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+import { COLORS } from '../utils/theme';
+import { commonStyles } from '../utils/commonStyles';
+import DayBadges from '../components/DayBadges';
 
 export default function SharedStatusScreen({ route }) {
   const { ownerId, ownerName } = route.params;
@@ -22,16 +23,11 @@ export default function SharedStatusScreen({ route }) {
       collection(db, 'medications'),
       where('userId', '==', ownerId)
     );
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMedications(list);
       setLoading(false);
     });
-
     return unsubscribe;
   }, [ownerId]);
 
@@ -44,7 +40,7 @@ export default function SharedStatusScreen({ route }) {
     const allTakenToday = item.times && item.times.every(time => isTakenAtTime(item, time));
 
     return (
-      <View style={[styles.card, allTakenToday && styles.cardTaken]}>
+      <View style={[commonStyles.card, allTakenToday && styles.cardTaken]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.name}</Text>
           {allTakenToday && (
@@ -64,9 +60,9 @@ export default function SharedStatusScreen({ route }) {
             return (
               <View
                 key={index}
-                style={[styles.timeBadge, taken && styles.timeBadgeTaken]}
+                style={taken ? styles.timeBadgeTaken : styles.timeBadgePending}
               >
-                <Text style={[styles.timeBadgeText, taken && styles.timeBadgeTextTaken]}>
+                <Text style={taken ? styles.timeBadgeTextTaken : styles.timeBadgeTextPending}>
                   {taken ? `✓ ${time}` : time}
                 </Text>
               </View>
@@ -74,45 +70,22 @@ export default function SharedStatusScreen({ route }) {
           })}
         </View>
 
-        <View style={styles.daysContainer}>
-          <Text style={styles.timesLabel}>Días:</Text>
-          <View style={styles.daysList}>
-            {DAYS.map((day, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dayBadge,
-                  item.selectedDays && item.selectedDays.includes(index)
-                    ? styles.dayBadgeActive
-                    : styles.dayBadgeInactive
-                ]}
-              >
-                <Text style={[
-                  styles.dayBadgeText,
-                  item.selectedDays && item.selectedDays.includes(index)
-                    ? styles.dayBadgeTextActive
-                    : styles.dayBadgeTextInactive
-                ]}>
-                  {day}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        <Text style={styles.timesLabel}>Días:</Text>
+        <DayBadges selectedDays={item.selectedDays} />
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Medicamentos de {ownerName}</Text>
-      <Text style={styles.subtitle}>Estado en tiempo real de hoy</Text>
+    <View style={commonStyles.container}>
+      <Text style={commonStyles.title}>Medicamentos de {ownerName}</Text>
+      <Text style={commonStyles.subtitle}>Estado en tiempo real de hoy</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2d6a4f" style={styles.loader} />
+        <ActivityIndicator size="large" color={COLORS.accent} />
       ) : medications.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No hay medicamentos registrados</Text>
+        <View style={commonStyles.empty}>
+          <Text style={commonStyles.emptyText}>No hay medicamentos registrados</Text>
         </View>
       ) : (
         <FlatList
@@ -127,49 +100,12 @@ export default function SharedStatusScreen({ route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 24
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2d6a4f',
-    marginTop: 40,
-    marginBottom: 4
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 24
-  },
-  loader: {
-    flex: 1
-  },
-  empty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  emptyText: {
-    color: '#999',
-    fontSize: 16
-  },
   list: {
     paddingBottom: 16
   },
-  card: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    backgroundColor: '#fff'
-  },
   cardTaken: {
-    borderColor: '#2d6a4f',
-    backgroundColor: '#f0faf4'
+    borderColor: COLORS.success,
+    backgroundColor: '#1a2e1a'
   },
   cardHeader: {
     flexDirection: 'row',
@@ -180,29 +116,29 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2d6a4f',
+    color: COLORS.text,
     flex: 1
   },
   completedBadge: {
-    backgroundColor: '#2d6a4f',
+    backgroundColor: COLORS.success,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6
   },
   completedBadgeText: {
-    color: '#fff',
+    color: COLORS.bg,
     fontSize: 12,
     fontWeight: 'bold'
   },
   cardText: {
     fontSize: 14,
-    color: '#555',
+    color: COLORS.textMuted,
     marginBottom: 2
   },
   timesLabel: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#444',
+    color: COLORS.textMuted,
     marginTop: 10,
     marginBottom: 6
   },
@@ -211,52 +147,30 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8
   },
-  timeBadge: {
+  timeBadgePending: {
     borderWidth: 1.5,
-    borderColor: '#ccc',
+    borderColor: COLORS.surface,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fff'
+    backgroundColor: COLORS.surface
   },
   timeBadgeTaken: {
-    backgroundColor: '#2d6a4f',
-    borderColor: '#2d6a4f'
+    borderWidth: 1.5,
+    borderColor: COLORS.success,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#1a2e1a'
   },
-  timeBadgeText: {
-    color: '#666',
+  timeBadgeTextPending: {
+    color: COLORS.textMuted,
     fontSize: 15,
     fontWeight: 'bold'
   },
   timeBadgeTextTaken: {
-    color: '#fff'
-  },
-  daysContainer: {
-    marginTop: 8
-  },
-  daysList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4
-  },
-  dayBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  dayBadgeActive: {
-    backgroundColor: '#2d6a4f'
-  },
-  dayBadgeInactive: {
-    backgroundColor: '#f0f0f0'
-  },
-  dayBadgeText: {
-    fontSize: 12
-  },
-  dayBadgeTextActive: {
-    color: '#fff'
-  },
-  dayBadgeTextInactive: {
-    color: '#999'
+    color: COLORS.success,
+    fontSize: 15,
+    fontWeight: 'bold'
   }
 });

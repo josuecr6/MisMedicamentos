@@ -10,6 +10,15 @@ import {
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
+const COLORS = {
+  bg: '#1c1c1e',
+  secondary: '#2c2c2e',
+  surface: '#3a3a3c',
+  accent: '#ff9f0a',
+  text: '#ffffff',
+  textMuted: '#8e8e93'
+};
+
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,9 +42,12 @@ export default function LoginScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Mis Medicamentos</Text>
+      <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+
       <TextInput
         style={styles.input}
         placeholder="Correo electrónico"
+        placeholderTextColor={COLORS.textMuted}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -44,6 +56,7 @@ export default function LoginScreen({ navigation }) {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
+        placeholderTextColor={COLORS.textMuted}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -70,38 +83,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: '#fff'
+    backgroundColor: COLORS.bg
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 32,
-    color: '#2d6a4f'
+    marginBottom: 8,
+    color: COLORS.accent
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 40,
+    color: COLORS.textMuted
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 16,
-    fontSize: 16
+    fontSize: 16,
+    backgroundColor: COLORS.secondary,
+    color: COLORS.text
   },
   button: {
-    backgroundColor: '#2d6a4f',
+    backgroundColor: COLORS.accent,
     padding: 16,
-    borderRadius: 8,
-    alignItems: 'center'
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.bg,
     fontSize: 16,
     fontWeight: 'bold'
   },
   registerText: {
     textAlign: 'center',
-    marginTop: 16,
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontSize: 14
   }
 });

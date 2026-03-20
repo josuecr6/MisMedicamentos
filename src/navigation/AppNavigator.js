@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-nat
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
@@ -19,6 +19,16 @@ import ReportsScreen from '../screens/ReportsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+const COLORS = {
+  bg: '#1c1c1e',
+  secondary: '#2c2c2e',
+  surface: '#3a3a3c',
+  accent: '#ff9f0a',
+  orange: '#ff6b35',
+  text: '#ffffff',
+  textMuted: '#8e8e93'
+};
 
 function HomeIcon({ color }) {
   return (
@@ -56,7 +66,7 @@ function AddButton({ onPress }) {
   return (
     <TouchableOpacity style={styles.addButton} onPress={onPress}>
       <Svg width="28" height="28" viewBox="0 0 24 24">
-        <Path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="#fff" />
+        <Path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill={COLORS.bg} />
       </Svg>
     </TouchableOpacity>
   );
@@ -68,8 +78,8 @@ function BottomTabs({ navigation }) {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#2d6a4f',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: COLORS.accent,
+        tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: styles.tabLabel
       }}
     >
@@ -117,9 +127,8 @@ function BottomTabs({ navigation }) {
 const styles = StyleSheet.create({
   tabBar: {
     height: 64,
-    borderTopWidth: 0.5,
-    borderTopColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    borderTopWidth: 0,
+    backgroundColor: COLORS.secondary,
     paddingBottom: 8,
     paddingTop: 8
   },
@@ -131,14 +140,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2d6a4f',
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#2d6a4f',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
     elevation: 8
   }
 });
@@ -148,15 +153,39 @@ export default function AppNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2d6a4f" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg }}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator>
+    <NavigationContainer
+      theme={{
+        dark: true,
+        colors: {
+          primary: COLORS.accent,
+          background: COLORS.bg,
+          card: COLORS.secondary,
+          text: COLORS.text,
+          border: COLORS.surface,
+          notification: COLORS.accent
+        },
+        fonts: {
+          regular: { fontFamily: 'System', fontWeight: '400' },
+          medium: { fontFamily: 'System', fontWeight: '500' },
+          bold: { fontFamily: 'System', fontWeight: '700' },
+          heavy: { fontFamily: 'System', fontWeight: '900' }
+        }
+      }}
+    >
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: COLORS.secondary },
+          headerTintColor: COLORS.text,
+          headerTitleStyle: { fontWeight: '600' }
+        }}
+      >
         {user ? (
           <>
             <Stack.Screen

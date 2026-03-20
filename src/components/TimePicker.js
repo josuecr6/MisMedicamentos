@@ -5,9 +5,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
-  Dimensions
+  ScrollView
 } from 'react-native';
+
+const COLORS = {
+  bg: '#1c1c1e',
+  secondary: '#2c2c2e',
+  surface: '#3a3a3c',
+  accent: '#ff9f0a',
+  text: '#ffffff',
+  textMuted: '#8e8e93'
+};
 
 const ITEM_HEIGHT = 50;
 const VISIBLE_ITEMS = 5;
@@ -84,9 +92,9 @@ const picker = StyleSheet.create({
     left: 0,
     right: 0,
     height: ITEM_HEIGHT,
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#2d6a4f',
+    borderTopWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: COLORS.accent,
     zIndex: 1
   },
   item: {
@@ -96,12 +104,12 @@ const picker = StyleSheet.create({
   },
   itemText: {
     fontSize: 22,
-    color: '#aaa',
+    color: COLORS.textMuted,
     fontWeight: '400'
   },
   itemTextSelected: {
     fontSize: 26,
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontWeight: 'bold'
   }
 });
@@ -140,7 +148,6 @@ export default function TimePicker({ value, onChange }) {
       <Modal visible={visible} transparent animationType="slide">
         <View style={styles.overlay}>
           <View style={styles.sheet}>
-
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Seleccionar hora</Text>
             </View>
@@ -190,7 +197,6 @@ export default function TimePicker({ value, onChange }) {
                 <Text style={styles.confirmText}>Confirmar</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         </View>
       </Modal>
@@ -201,26 +207,26 @@ export default function TimePicker({ value, onChange }) {
 const styles = StyleSheet.create({
   timeButton: {
     borderWidth: 1.5,
-    borderColor: '#2d6a4f',
+    borderColor: COLORS.accent,
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
-    backgroundColor: '#f0faf4'
+    backgroundColor: COLORS.secondary
   },
   timeButtonText: {
-    color: '#2d6a4f',
+    color: COLORS.accent,
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end'
   },
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.secondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2d6a4f',
+    color: COLORS.accent,
     marginBottom: 4
   },
   pickersRow: {
@@ -251,7 +257,7 @@ const styles = StyleSheet.create({
   pickerLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#888',
+    color: COLORS.textMuted,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1
@@ -259,7 +265,7 @@ const styles = StyleSheet.create({
   colon: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2d6a4f',
+    color: COLORS.accent,
     marginTop: 24
   },
   buttons: {
@@ -270,25 +276,25 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: '#2d6a4f',
+    borderColor: COLORS.surface,
     padding: 14,
     borderRadius: 12,
     alignItems: 'center'
   },
   cancelText: {
-    color: '#2d6a4f',
+    color: COLORS.textMuted,
     fontSize: 15,
     fontWeight: 'bold'
   },
   confirmButton: {
     flex: 1,
-    backgroundColor: '#2d6a4f',
+    backgroundColor: COLORS.accent,
     padding: 14,
     borderRadius: 12,
     alignItems: 'center'
   },
   confirmText: {
-    color: '#fff',
+    color: COLORS.bg,
     fontSize: 15,
     fontWeight: 'bold'
   }
