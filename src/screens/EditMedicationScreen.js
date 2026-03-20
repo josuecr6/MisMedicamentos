@@ -11,7 +11,7 @@ import {
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { deleteMedication } from '../services/medicationService';
-import { requestPermissions, scheduleNotification } from '../utils/notifications';
+import { requestPermissions, scheduleNotification, cancelNotification } from '../utils/notifications';
 import { COLORS, DAYS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
 import { convertTo24Hour, sortTimes } from '../utils/timeUtils';
@@ -62,25 +62,38 @@ export default function EditMedicationScreen({ route, navigation }) {
     }
     try {
       setLoading(true);
-      if (medication.notificationIds) {
+
+      // M1 — cancelar correctamente las notificaciones anteriores
+      // antes de programar las nuevas
+      if (medication.notificationIds && medication.notificationIds.length > 0) {
         for (const id of medication.notificationIds) {
-          await scheduleNotification(name, 0, 0, []);
+          await cancelNotification(id);
         }
       }
+
       const granted = await requestPermissions();
       if (!granted) {
         Alert.alert('Error', 'Necesitas permitir las notificaciones');
         return;
       }
+
+      // Programar las nuevas notificaciones con los horarios actualizados
       const notificationIds = [];
       for (const time of times) {
         const { hour, minute } = convertTo24Hour(time);
         const id = await scheduleNotification(name, hour, minute, selectedDays);
         notificationIds.push(id);
       }
+
       await updateDoc(doc(db, 'medications', medication.id), {
-        name, reason, doctor, times, selectedDays, notificationIds
+        name,
+        reason,
+        doctor,
+        times,
+        selectedDays,
+        notificationIds
       });
+
       Alert.alert('Éxito', 'Medicamento actualizado correctamente');
       navigation.goBack();
     } catch (error) {

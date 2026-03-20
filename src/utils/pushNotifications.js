@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 
 export async function registerPushToken() {
@@ -24,22 +24,36 @@ export async function registerPushToken() {
   }
 
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId
-      ?? Constants.easConfig?.projectId;
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
 
-    const token = (await Notifications.getExpoPushTokenAsync({
-      projectId: projectId
-    })).data;
+    const token = (
+      await Notifications.getExpoPushTokenAsync({ projectId })
+    ).data;
 
-    if (auth.currentUser) {
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-        pushToken: token
-      });
+    const currentUser = auth.currentUser;
+
+    // M2 — verificar que hay sesión activa y que el documento existe
+    // antes de intentar escribir el token
+    if (!currentUser) {
+      console.log('No hay sesión activa, no se guarda el push token');
+      return null;
     }
+
+    const userRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      console.log('Documento de usuario no encontrado, no se guarda el push token');
+      return null;
+    }
+
+    await updateDoc(userRef, { pushToken: token });
 
     return token;
   } catch (error) {
-    console.log('Error al obtener el token:', error);
+    console.log('Error al obtener o guardar el token:', error);
     return null;
   }
 }

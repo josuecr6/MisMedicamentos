@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,13 +20,37 @@ const COLORS = {
   textMuted: '#8e8e93'
 };
 
+// M3 — límite de intentos de registro
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 60 * 1000; // 1 minuto de bloqueo
+
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const attemptCount = useRef(0);
+  const lockedUntil = useRef(null);
+
+  const isLockedOut = () => {
+    if (lockedUntil.current && Date.now() < lockedUntil.current) {
+      const secondsLeft = Math.ceil(
+        (lockedUntil.current - Date.now()) / 1000
+      );
+      Alert.alert(
+        'Demasiados intentos',
+        `Por seguridad espera ${secondsLeft} segundos antes de intentar de nuevo.`
+      );
+      return true;
+    }
+    return false;
+  };
+
   const handleRegister = async () => {
+    // M3 — verificar bloqueo antes de proceder
+    if (isLockedOut()) return;
+
     if (!name || !email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
@@ -35,19 +59,46 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
+
     try {
       setLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      attemptCount.current += 1;
+
+      // Bloquear después de MAX_ATTEMPTS intentos fallidos
+      if (attemptCount.current >= MAX_ATTEMPTS) {
+        lockedUntil.current = Date.now() + LOCKOUT_MS;
+        attemptCount.current = 0;
+      }
+
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email.toLowerCase().trim(),
+        password
+      );
+
       await setDoc(doc(db, 'users', userCredential.user.uid), {
-        name,
-        email,
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
         uid: userCredential.user.uid,
         createdAt: new Date()
       });
+
+      // Registro exitoso — resetear contador
+      attemptCount.current = 0;
+      lockedUntil.current = null;
+
       Alert.alert('Éxito', 'Cuenta creada correctamente');
       navigation.navigate('Login');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      // Mensajes genéricos para no revelar si el email ya existe
+      const genericErrors = {
+        'auth/email-already-in-use': 'No se pudo crear la cuenta. Intenta con otro correo.',
+        'auth/invalid-email': 'El formato del correo no es válido.',
+        'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.'
+      };
+      const message =
+        genericErrors[error.code] ?? 'No se pudo crear la cuenta. Intenta de nuevo.';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -64,6 +115,7 @@ export default function RegisterScreen({ navigation }) {
         placeholderTextColor={COLORS.textMuted}
         value={name}
         onChangeText={setName}
+        autoCorrect={false}
       />
       <TextInput
         style={styles.input}
@@ -73,6 +125,7 @@ export default function RegisterScreen({ navigation }) {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
+        autoCorrect={false}
       />
       <TextInput
         style={styles.input}
