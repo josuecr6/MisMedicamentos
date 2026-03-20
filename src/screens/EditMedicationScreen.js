@@ -8,8 +8,8 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { doc, updateDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
+import { db, auth } from '../services/firebase';
 import { cancelNotification, scheduleNotification, requestPermissions } from '../utils/notifications';
 import TimePicker from '../components/TimePicker';
 
@@ -124,11 +124,11 @@ export default function EditMedicationScreen({ route, navigation }) {
   const handleDelete = () => {
     Alert.alert(
       'Eliminar medicamento',
-      `¿Estás seguro que deseas eliminar ${name}?`,
+      `¿Qué deseas hacer con ${name}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Eliminar',
+          text: 'Eliminar sin guardar',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -138,6 +138,33 @@ export default function EditMedicationScreen({ route, navigation }) {
                 }
               }
               await deleteDoc(doc(db, 'medications', medication.id));
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar el medicamento');
+            }
+          }
+        },
+        {
+          text: 'Guardar en historial',
+          onPress: async () => {
+            try {
+              if (medication.notificationIds) {
+                for (const id of medication.notificationIds) {
+                  await cancelNotification(id);
+                }
+              }
+              await addDoc(collection(db, 'medicationHistory'), {
+                name: medication.name,
+                reason: medication.reason,
+                doctor: medication.doctor,
+                times: medication.times,
+                selectedDays: medication.selectedDays,
+                createdAt: medication.createdAt,
+                deletedAt: new Date(),
+                userId: auth.currentUser.uid
+              });
+              await deleteDoc(doc(db, 'medications', medication.id));
+              Alert.alert('Éxito', 'Medicamento guardado en el historial');
               navigation.goBack();
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');

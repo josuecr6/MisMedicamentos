@@ -7,8 +7,8 @@ import {
   Alert
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { doc, updateDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
+import { db, auth } from '../services/firebase';
 import { cancelNotification } from '../utils/notifications';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -78,6 +78,19 @@ export default function MedicationCard({ item, navigation }) {
     await updateDoc(ref, { takenTimes: updatedTakenTimes });
   };
 
+  const saveToHistory = async () => {
+    await addDoc(collection(db, 'medicationHistory'), {
+      name: item.name,
+      reason: item.reason,
+      doctor: item.doctor,
+      times: item.times,
+      selectedDays: item.selectedDays,
+      createdAt: item.createdAt,
+      deletedAt: new Date(),
+      userId: auth.currentUser.uid
+    });
+  };
+
   const handleDelete = () => {
     Alert.alert(
       'Eliminar medicamento',
@@ -85,7 +98,7 @@ export default function MedicationCard({ item, navigation }) {
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Eliminar',
+          text: 'Eliminar sin guardar',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -95,6 +108,23 @@ export default function MedicationCard({ item, navigation }) {
                 }
               }
               await deleteDoc(doc(db, 'medications', item.id));
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar el medicamento');
+            }
+          }
+        },
+        {
+          text: 'Guardar en historial',
+          onPress: async () => {
+            try {
+              if (item.notificationIds) {
+                for (const id of item.notificationIds) {
+                  await cancelNotification(id);
+                }
+              }
+              await saveToHistory();
+              await deleteDoc(doc(db, 'medications', item.id));
+              Alert.alert('Éxito', 'Medicamento guardado en el historial');
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }

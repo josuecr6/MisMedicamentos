@@ -119,6 +119,13 @@ export default function ProfileScreen({ navigation }) {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Mi perfil</Text>
 
+      <TouchableOpacity
+        style={styles.reportsButton}
+        onPress={() => navigation.navigate('Reports')}
+      >
+        <Text style={styles.reportsButtonText}>📋 Ver historial de medicamentos</Text>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Información personal</Text>
         <Text style={styles.label}>Nombre</Text>
@@ -212,6 +219,20 @@ const styles = StyleSheet.create({
     color: '#2d6a4f',
     marginTop: 40,
     marginBottom: 24
+  },
+  reportsButton: {
+    backgroundColor: '#e8f5e9',
+    borderWidth: 1,
+    borderColor: '#2d6a4f',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 24
+  },
+  reportsButtonText: {
+    color: '#2d6a4f',
+    fontSize: 15,
+    fontWeight: 'bold'
   },
   section: {
     marginBottom: 32,
