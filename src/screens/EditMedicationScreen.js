@@ -25,14 +25,27 @@ export default function EditMedicationScreen({ route, navigation }) {
   const [selectedDays, setSelectedDays] = useState(medication.selectedDays || [0,1,2,3,4,5,6]);
   const [loading, setLoading] = useState(false);
 
+  const sortTimes = (timesArray) => {
+    return timesArray.sort((a, b) => {
+      const toMinutes = (time) => {
+        const [timePart, period] = time.split(' ');
+        let [hour, minute] = timePart.split(':').map(Number);
+        if (period === 'AM' && hour === 12) hour = 0;
+        if (period === 'PM' && hour !== 12) hour += 12;
+        return hour * 60 + minute;
+      };
+      return toMinutes(a) - toMinutes(b);
+    });
+  };
+
   const addTime = () => {
-    setTimes([...times, '08:00 AM']);
+    setTimes(sortTimes([...times, '08:00 AM']));
   };
 
   const updateTime = (index, value) => {
     const updated = [...times];
     updated[index] = value;
-    setTimes(updated);
+    setTimes(sortTimes(updated));
   };
 
   const removeTime = (index) => {
