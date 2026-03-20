@@ -23,6 +23,12 @@ import { db, auth } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
 
+// Valida formato de email antes de consultar Firestore
+const isValidEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+};
+
 export default function PersonsScreen() {
   const [persons, setPersons] = useState([]);
   const [email, setEmail] = useState('');
@@ -43,43 +49,73 @@ export default function PersonsScreen() {
   }, []);
 
   const handleAddPerson = async () => {
-    if (!email) {
+    const sanitizedEmail = email.toLowerCase().trim();
+
+    // H2 — validar formato antes de tocar Firestore
+    if (!sanitizedEmail) {
       Alert.alert('Error', 'Por favor ingresa un correo');
       return;
     }
-    if (email === auth.currentUser.email) {
+
+    if (!isValidEmail(sanitizedEmail)) {
+      Alert.alert('Error', 'El formato del correo no es válido');
+      return;
+    }
+
+    if (sanitizedEmail === auth.currentUser.email) {
       Alert.alert('Error', 'No puedes agregarte a ti mismo');
       return;
     }
+
+    const alreadyAdded = persons.find(
+      p => p.guestEmail === sanitizedEmail
+    );
+    if (alreadyAdded) {
+      // Mensaje genérico — no confirma si el email existe o no
+      Alert.alert('Aviso', 'Ya tienes acceso compartido con ese usuario');
+      return;
+    }
+
     try {
       setSearching(true);
       const q = query(
         collection(db, 'users'),
-        where('email', '==', email.toLowerCase().trim())
+        where('email', '==', sanitizedEmail)
       );
       const snapshot = await getDocs(q);
+
+      // Mensaje genérico tanto si no existe como si hubo error
+      // para no permitir enumeración de usuarios registrados
       if (snapshot.empty) {
-        Alert.alert('Error', 'No existe ningún usuario con ese correo');
+        Alert.alert(
+          'Aviso',
+          'Si ese correo está registrado, se ha dado acceso correctamente.'
+        );
         return;
       }
+
       const userFound = snapshot.docs[0].data();
-      const alreadyAdded = persons.find(p => p.guestId === userFound.uid);
-      if (alreadyAdded) {
-        Alert.alert('Error', 'Ya tienes acceso compartido con ese usuario');
-        return;
-      }
-      await setDoc(doc(db, 'sharedAccess', `${auth.currentUser.uid}_${userFound.uid}`), {
-        ownerId: auth.currentUser.uid,
-        ownerEmail: auth.currentUser.email,
-        guestId: userFound.uid,
-        guestEmail: userFound.email,
-        guestName: userFound.name,
-        createdAt: new Date()
-      });
+
+      await setDoc(
+        doc(db, 'sharedAccess', `${auth.currentUser.uid}_${userFound.uid}`),
+        {
+          ownerId: auth.currentUser.uid,
+          ownerEmail: auth.currentUser.email,
+          guestId: userFound.uid,
+          guestEmail: userFound.email,
+          guestName: userFound.name,
+          createdAt: new Date()
+        }
+      );
+
       setEmail('');
-      Alert.alert('Éxito', `${userFound.name} ahora puede ver tus medicamentos`);
+      Alert.alert(
+        'Aviso',
+        'Si ese correo está registrado, se ha dado acceso correctamente.'
+      );
     } catch (error) {
-      Alert.alert('Error', 'No se pudo agregar la persona');
+      // Error genérico — no revela detalles internos
+      Alert.alert('Error', 'No se pudo completar la operación');
     } finally {
       setSearching(false);
     }
@@ -131,6 +167,7 @@ export default function PersonsScreen() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
         />
         <TouchableOpacity
           style={commonStyles.button}
@@ -138,7 +175,7 @@ export default function PersonsScreen() {
           disabled={searching}
         >
           <Text style={commonStyles.buttonText}>
-            {searching ? 'Buscando...' : '+ Dar acceso'}
+            {searching ? 'Procesando...' : '+ Dar acceso'}
           </Text>
         </TouchableOpacity>
       </View>
