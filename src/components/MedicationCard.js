@@ -21,6 +21,34 @@ export default function MedicationCard({ item, navigation }) {
     return item.takenTimes && item.takenTimes.includes(key);
   };
 
+  const hasTimePassed = (time) => {
+    const now = new Date();
+    const timePart = time.split(' ')[0];
+    const period = time.split(' ')[1];
+    let [hour, minute] = timePart.split(':').map(Number);
+    if (period === 'AM' && hour === 12) hour = 0;
+    if (period === 'PM' && hour !== 12) hour += 12;
+    const eventTime = new Date();
+    eventTime.setHours(hour, minute, 0, 0);
+    return now > eventTime;
+  };
+
+  const getTimeBadgeStyle = (time) => {
+    const taken = isTakenAtTime(time);
+    const passed = hasTimePassed(time);
+    if (taken) return styles.timeBadgeTaken;
+    if (passed) return styles.timeBadgePending;
+    return styles.timeBadgeUpcoming;
+  };
+
+  const getTimeTextStyle = (time) => {
+    const taken = isTakenAtTime(time);
+    const passed = hasTimePassed(time);
+    if (taken) return styles.timeBadgeTextTaken;
+    if (passed) return styles.timeBadgeTextPending;
+    return styles.timeBadgeTextUpcoming;
+  };
+
   const handleToggleTime = async (time) => {
     const key = `${today}_${time}`;
     const currentTakenTimes = item.takenTimes || [];
@@ -104,10 +132,10 @@ export default function MedicationCard({ item, navigation }) {
           return (
             <TouchableOpacity
               key={index}
-              style={[styles.timeBadge, taken && styles.timeBadgeTaken]}
+              style={getTimeBadgeStyle(time)}
               onPress={() => handleToggleTime(time)}
             >
-              <Text style={[styles.timeBadgeText, taken && styles.timeBadgeTextTaken]}>
+              <Text style={getTimeTextStyle(time)}>
                 {taken ? `✓ ${time}` : time}
               </Text>
             </TouchableOpacity>
@@ -206,25 +234,44 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8
   },
-  timeBadge: {
+  timeBadgeUpcoming: {
     borderWidth: 1.5,
-    borderColor: '#2d6a4f',
+    borderColor: '#ccc',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: '#fff'
   },
-  timeBadgeTaken: {
-    backgroundColor: '#2d6a4f',
-    borderColor: '#2d6a4f'
+  timeBadgePending: {
+    borderWidth: 2,
+    borderColor: '#d32f2f',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#ffcdd2'
   },
-  timeBadgeText: {
-    color: '#2d6a4f',
+  timeBadgeTaken: {
+    borderWidth: 1.5,
+    borderColor: '#2d6a4f',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#2d6a4f'
+  },
+  timeBadgeTextUpcoming: {
+    color: '#666',
+    fontSize: 15,
+    fontWeight: 'bold'
+  },
+  timeBadgeTextPending: {
+    color: '#b71c1c',
     fontSize: 15,
     fontWeight: 'bold'
   },
   timeBadgeTextTaken: {
-    color: '#fff'
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold'
   },
   daysContainer: {
     marginTop: 8
