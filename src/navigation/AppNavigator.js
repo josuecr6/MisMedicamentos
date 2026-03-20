@@ -12,6 +12,7 @@ import EditMedicationScreen from '../screens/EditMedicationScreen';
 import PersonsScreen from '../screens/PersonsScreen';
 import SharedStatusScreen from '../screens/SharedStatusScreen';
 import SharedWithMeScreen from '../screens/SharedWithMeScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createStackNavigator();
 
@@ -60,6 +61,11 @@ export default function AppNavigator() {
               name="SharedWithMe"
               component={SharedWithMeScreen}
               options={{ title: 'Compartido conmigo' }}
+            />
+            <Stack.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={{ title: 'Mi perfil' }}
             />
           </>
         ) : (

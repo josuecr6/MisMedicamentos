@@ -8,7 +8,6 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
 import { db, auth } from '../services/firebase';
 import MedicationCard from '../components/MedicationCard';
 
@@ -34,16 +33,15 @@ export default function HomeScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Mis Medicamentos</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Salir</Text>
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={() => navigation.navigate('Profile')}
+        >
+          <Text style={styles.profileButtonText}>Mi perfil</Text>
         </TouchableOpacity>
       </View>
 
@@ -104,9 +102,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2d6a4f'
   },
-  logoutText: {
+  profileButton: {
+    borderWidth: 1,
+    borderColor: '#2d6a4f',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  profileButtonText: {
     color: '#2d6a4f',
-    fontSize: 14
+    fontSize: 13,
+    fontWeight: 'bold'
   },
   actions: {
     flexDirection: 'row',
