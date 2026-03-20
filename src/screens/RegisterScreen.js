@@ -8,7 +8,8 @@ import {
   Alert
 } from 'react-native';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../services/firebase';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -27,7 +28,13 @@ export default function RegisterScreen({ navigation }) {
     }
     try {
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        name,
+        email,
+        uid: userCredential.user.uid,
+        createdAt: new Date()
+      });
       Alert.alert('Éxito', 'Cuenta creada correctamente');
       navigation.navigate('Login');
     } catch (error) {
@@ -60,6 +67,7 @@ export default function RegisterScreen({ navigation }) {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        autoCapitalize="none"
       />
       <TouchableOpacity
         style={styles.button}

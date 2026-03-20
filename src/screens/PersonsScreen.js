@@ -11,25 +11,25 @@ import {
 } from 'react-native';
 import {
   collection,
-  addDoc,
   query,
   where,
   onSnapshot,
   deleteDoc,
-  doc
+  doc,
+  getDocs,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 
 export default function PersonsScreen({ navigation }) {
   const [persons, setPersons] = useState([]);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     const q = query(
-      collection(db, 'persons'),
+      collection(db, 'sharedAccess'),
       where('ownerId', '==', auth.currentUser.uid)
     );
 
@@ -46,39 +46,64 @@ export default function PersonsScreen({ navigation }) {
   }, []);
 
   const handleAddPerson = async () => {
-    if (!name || !email) {
-      Alert.alert('Error', 'Por favor completa el nombre y correo');
+    if (!email) {
+      Alert.alert('Error', 'Por favor ingresa un correo');
+      return;
+    }
+    if (email === auth.currentUser.email) {
+      Alert.alert('Error', 'No puedes agregarte a ti mismo');
       return;
     }
     try {
-      setSaving(true);
-      await addDoc(collection(db, 'persons'), {
-        name,
-        email,
+      setSearching(true);
+      const q = query(
+        collection(db, 'users'),
+        where('email', '==', email.toLowerCase().trim())
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        Alert.alert('Error', 'No existe ningún usuario con ese correo');
+        return;
+      }
+
+      const userFound = snapshot.docs[0].data();
+
+      const alreadyAdded = persons.find(p => p.guestId === userFound.uid);
+      if (alreadyAdded) {
+        Alert.alert('Error', 'Ya tienes acceso compartido con ese usuario');
+        return;
+      }
+
+      await setDoc(doc(db, 'sharedAccess', `${auth.currentUser.uid}_${userFound.uid}`), {
         ownerId: auth.currentUser.uid,
+        ownerEmail: auth.currentUser.email,
+        guestId: userFound.uid,
+        guestEmail: userFound.email,
+        guestName: userFound.name,
         createdAt: new Date()
       });
-      setName('');
+
       setEmail('');
-      Alert.alert('Éxito', 'Persona agregada correctamente');
+      Alert.alert('Éxito', `${userFound.name} ahora puede ver tus medicamentos`);
     } catch (error) {
       Alert.alert('Error', 'No se pudo agregar la persona');
     } finally {
-      setSaving(false);
+      setSearching(false);
     }
   };
 
   const handleDeletePerson = async (id) => {
     Alert.alert(
-      'Eliminar persona',
-      '¿Estás seguro que deseas eliminar esta persona?',
+      'Eliminar acceso',
+      '¿Estás seguro que deseas quitar el acceso a esta persona?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            await deleteDoc(doc(db, 'persons', id));
+            await deleteDoc(doc(db, 'sharedAccess', id));
           }
         }
       ]
@@ -88,46 +113,29 @@ export default function PersonsScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardInfo}>
-        <Text style={styles.cardName}>{item.name}</Text>
-        <Text style={styles.cardEmail}>{item.email}</Text>
+        <Text style={styles.cardName}>{item.guestName}</Text>
+        <Text style={styles.cardEmail}>{item.guestEmail}</Text>
       </View>
-      <View style={styles.cardButtons}>
-        <TouchableOpacity
-          style={styles.viewButton}
-          onPress={() => navigation.navigate('SharedStatus', {
-            ownerId: auth.currentUser.uid,
-            ownerName: 'mis'
-          })}
-        >
-          <Text style={styles.viewButtonText}>Ver estado</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => handleDeletePerson(item.id)}
-        >
-          <Text style={styles.deleteButtonText}>Eliminar</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => handleDeletePerson(item.id)}
+      >
+        <Text style={styles.deleteButtonText}>Quitar</Text>
+      </TouchableOpacity>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Personas</Text>
+      <Text style={styles.title}>Personas con acceso</Text>
       <Text style={styles.subtitle}>
-        Estas personas recibirán notificaciones y podrán ver el estado de tus medicamentos
+        Ingresa el correo de un usuario registrado para darle acceso a tus medicamentos
       </Text>
 
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Nombre"
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Correo electrónico"
+          placeholder="Correo electrónico del usuario"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -136,10 +144,10 @@ export default function PersonsScreen({ navigation }) {
         <TouchableOpacity
           style={styles.button}
           onPress={handleAddPerson}
-          disabled={saving}
+          disabled={searching}
         >
           <Text style={styles.buttonText}>
-            {saving ? 'Agregando...' : '+ Agregar persona'}
+            {searching ? 'Buscando...' : '+ Dar acceso'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -148,7 +156,7 @@ export default function PersonsScreen({ navigation }) {
         <ActivityIndicator size="large" color="#2d6a4f" />
       ) : persons.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No tienes personas agregadas</Text>
+          <Text style={styles.emptyText}>No has dado acceso a nadie aún</Text>
         </View>
       ) : (
         <FlatList
@@ -215,6 +223,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16
   },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
@@ -222,7 +232,7 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   cardInfo: {
-    marginBottom: 12
+    flex: 1
   },
   cardName: {
     fontSize: 16,
@@ -234,29 +244,11 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2
   },
-  cardButtons: {
-    flexDirection: 'row',
-    gap: 8
-  },
-  viewButton: {
-    flex: 1,
-    backgroundColor: '#2d6a4f',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center'
-  },
-  viewButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold'
-  },
   deleteButton: {
     backgroundColor: '#ff4444',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center'
+    borderRadius: 6
   },
   deleteButtonText: {
     color: '#fff',

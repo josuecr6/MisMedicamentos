@@ -52,13 +52,19 @@ export default function HomeScreen({ navigation }) {
           style={styles.actionButton}
           onPress={() => navigation.navigate('AddMedication')}
         >
-          <Text style={styles.actionButtonText}>+ Agregar medicamento</Text>
+          <Text style={styles.actionButtonText}>+ Agregar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.actionButtonSecondary]}
           onPress={() => navigation.navigate('Persons')}
         >
-          <Text style={styles.actionButtonTextSecondary}>Personas</Text>
+          <Text style={styles.actionButtonTextSecondary}>Accesos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.actionButtonSecondary]}
+          onPress={() => navigation.navigate('SharedWithMe')}
+        >
+          <Text style={styles.actionButtonTextSecondary}>Compartido</Text>
         </TouchableOpacity>
       </View>
 
@@ -104,13 +110,13 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     marginBottom: 24
   },
   actionButton: {
     flex: 1,
     backgroundColor: '#2d6a4f',
-    padding: 14,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center'
   },
@@ -121,12 +127,12 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold'
   },
   actionButtonTextSecondary: {
     color: '#2d6a4f',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold'
   },
   loader: {

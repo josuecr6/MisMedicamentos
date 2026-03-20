@@ -11,6 +11,7 @@ import AddMedicationScreen from '../screens/AddMedicationScreen';
 import EditMedicationScreen from '../screens/EditMedicationScreen';
 import PersonsScreen from '../screens/PersonsScreen';
 import SharedStatusScreen from '../screens/SharedStatusScreen';
+import SharedWithMeScreen from '../screens/SharedWithMeScreen';
 
 const Stack = createStackNavigator();
 
@@ -48,12 +49,17 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Persons"
               component={PersonsScreen}
-              options={{ title: 'Personas' }}
+              options={{ title: 'Personas con acceso' }}
             />
             <Stack.Screen
               name="SharedStatus"
               component={SharedStatusScreen}
               options={{ title: 'Estado de medicamentos' }}
+            />
+            <Stack.Screen
+              name="SharedWithMe"
+              component={SharedWithMeScreen}
+              options={{ title: 'Compartido conmigo' }}
             />
           </>
         ) : (
