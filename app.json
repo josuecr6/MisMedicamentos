@@ -18,7 +18,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.josuecr66.MisMedicamentos"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -27,6 +28,7 @@
       "eas": {
         "projectId": "6f05c4a1-f8b4-4a68-839c-fe94bef56e7f"
       }
-    }
+    },
+    "owner": "josuecr66"
   }
 }
