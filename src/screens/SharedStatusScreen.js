@@ -1,80 +1,113 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
+
 import { db } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
+import { isScheduledForDate } from '../utils/dateUtils';
 import DayBadges from '../components/DayBadges';
+import useTodayKey from '../hooks/useTodayKey';
 
 export default function SharedStatusScreen({ route }) {
   const { ownerId, ownerName } = route.params;
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const today = new Date().toISOString().split('T')[0];
+  const today = useTodayKey();
 
   useEffect(() => {
     const q = query(
       collection(db, 'medications'),
-      where('userId', '==', ownerId)
+      where('userId', '==', ownerId),
+      limit(50)
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMedications(list);
-      setLoading(false);
-    });
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+        setMedications(list);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+
     return unsubscribe;
   }, [ownerId]);
 
-  const isTakenAtTime = (item, time) => {
-    const key = `${today}_${time}`;
-    return item.takenTimes && item.takenTimes.includes(key);
-  };
+  const isTakenAtTime = useCallback(
+    (item, time) => {
+      const key = `${today}_${time}`;
+      return item.takenTimes?.includes(key) ?? false;
+    },
+    [today]
+  );
 
-  const renderItem = ({ item }) => {
-    const allTakenToday = item.times && item.times.every(time => isTakenAtTime(item, time));
+  const renderItem = useCallback(
+    ({ item }) => {
+      const scheduledToday = isScheduledForDate(item.selectedDays);
+      const allTakenToday = scheduledToday && item.times?.every((time) => isTakenAtTime(item, time));
 
-    return (
-      <View style={[commonStyles.card, allTakenToday && styles.cardTaken]}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.name}</Text>
-          {allTakenToday && (
-            <View style={styles.completedBadge}>
-              <Text style={styles.completedBadgeText}>✓ Completo</Text>
-            </View>
-          )}
-        </View>
-
-        <Text style={styles.cardText}>Para: {item.reason}</Text>
-        <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
-
-        <Text style={styles.timesLabel}>Estado de hoy:</Text>
-        <View style={styles.timesList}>
-          {item.times && item.times.map((time, index) => {
-            const taken = isTakenAtTime(item, time);
-            return (
-              <View
-                key={index}
-                style={taken ? styles.timeBadgeTaken : styles.timeBadgePending}
-              >
-                <Text style={taken ? styles.timeBadgeTextTaken : styles.timeBadgeTextPending}>
-                  {taken ? `✓ ${time}` : time}
-                </Text>
+      return (
+        <View style={[commonStyles.card, allTakenToday && styles.cardTaken]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{item.name}</Text>
+            {allTakenToday ? (
+              <View style={styles.completedBadge}>
+                <Text style={styles.completedBadgeText}>✓ Completo</Text>
               </View>
-            );
-          })}
-        </View>
+            ) : null}
+          </View>
 
-        <Text style={styles.timesLabel}>Días:</Text>
-        <DayBadges selectedDays={item.selectedDays} />
-      </View>
-    );
-  };
+          <Text style={styles.cardText}>Para: {item.reason}</Text>
+          <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
+
+          <Text style={styles.timesLabel}>
+            {scheduledToday ? 'Estado de hoy:' : 'Hoy no corresponde este medicamento'}
+          </Text>
+          <View style={styles.timesList}>
+            {item.times?.map((time, index) => {
+              const taken = isTakenAtTime(item, time);
+              return (
+                <View
+                  key={`${time}-${index}`}
+                  style={
+                    !scheduledToday
+                      ? styles.timeBadgeInactive
+                      : taken
+                        ? styles.timeBadgeTaken
+                        : styles.timeBadgePending
+                  }
+                >
+                  <Text
+                    style={
+                      !scheduledToday
+                        ? styles.timeBadgeTextInactive
+                        : taken
+                          ? styles.timeBadgeTextTaken
+                          : styles.timeBadgeTextPending
+                    }
+                  >
+                    {taken ? `✓ ${time}` : time}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          <Text style={styles.timesLabel}>Días:</Text>
+          <DayBadges selectedDays={item.selectedDays} />
+        </View>
+      );
+    },
+    [isTakenAtTime]
+  );
 
   return (
     <View style={commonStyles.container}>
@@ -90,9 +123,12 @@ export default function SharedStatusScreen({ route }) {
       ) : (
         <FlatList
           data={medications}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
     </View>
@@ -101,51 +137,51 @@ export default function SharedStatusScreen({ route }) {
 
 const styles = StyleSheet.create({
   list: {
-    paddingBottom: 16
+    paddingBottom: 16,
   },
   cardTaken: {
     borderColor: COLORS.success,
-    backgroundColor: '#1a2e1a'
+    backgroundColor: '#1a2e1a',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 8,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
-    flex: 1
+    flex: 1,
   },
   completedBadge: {
     backgroundColor: COLORS.success,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6
+    borderRadius: 6,
   },
   completedBadgeText: {
     color: COLORS.bg,
     fontSize: 12,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   cardText: {
     fontSize: 14,
     color: COLORS.textMuted,
-    marginBottom: 2
+    marginBottom: 2,
   },
   timesLabel: {
     fontSize: 13,
     fontWeight: 'bold',
     color: COLORS.textMuted,
     marginTop: 10,
-    marginBottom: 6
+    marginBottom: 6,
   },
   timesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8
+    gap: 8,
   },
   timeBadgePending: {
     borderWidth: 1.5,
@@ -153,7 +189,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: COLORS.surface
+    backgroundColor: COLORS.surface,
   },
   timeBadgeTaken: {
     borderWidth: 1.5,
@@ -161,16 +197,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#1a2e1a'
+    backgroundColor: '#1a2e1a',
+  },
+  timeBadgeInactive: {
+    borderWidth: 1.5,
+    borderColor: COLORS.surface,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: COLORS.secondary,
   },
   timeBadgeTextPending: {
     color: COLORS.textMuted,
     fontSize: 15,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   timeBadgeTextTaken: {
     color: COLORS.success,
     fontSize: 15,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
+  timeBadgeTextInactive: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
 });

@@ -58,7 +58,7 @@ export default function PersonsScreen() {
       setSearching(true);
       const q = query(
         collection(db, 'users'),
-        where('email', '==', trimmedEmail),
+        where('emailNormalized', '==', trimmedEmail),
         limit(1)
       );
       const snapshot = await getDocs(q);

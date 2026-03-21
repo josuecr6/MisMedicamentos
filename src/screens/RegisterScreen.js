@@ -52,10 +52,12 @@ export default function RegisterScreen({ navigation }) {
     }
     try {
       setLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       await setDoc(doc(db, 'users', userCredential.user.uid), {
-        name,
-        email,
+        name: name.trim(),
+        email: normalizedEmail,
+        emailNormalized: normalizedEmail,
         uid: userCredential.user.uid,
         createdAt: new Date(),
       });

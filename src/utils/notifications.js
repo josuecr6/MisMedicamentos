@@ -17,6 +17,7 @@ export async function requestPermissions() {
       sound: true,
     });
   }
+
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
 }
@@ -25,7 +26,6 @@ export async function scheduleNotification(medicationName, hour, minute, selecte
   const ids = [];
 
   if (selectedDays.length === 0) {
-    // Si no hay días seleccionados, programar diario como fallback
     const trigger = Platform.OS === 'android'
       ? {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -49,21 +49,17 @@ export async function scheduleNotification(medicationName, hour, minute, selecte
       trigger,
     });
 
-    ids.push(id);
-    return ids;
+    return [id];
   }
 
-  // Programar una notificación por cada día seleccionado
-  // Expo usa: 1=Domingo, 2=Lunes, ..., 7=Sábado
-  // Nuestra app usa: 0=Dom, 1=Lun, ..., 6=Sáb
   const expoWeekdayMap = {
-    0: 1, // Domingo
-    1: 2, // Lunes
-    2: 3, // Martes
-    3: 4, // Miércoles
-    4: 5, // Jueves
-    5: 6, // Viernes
-    6: 7, // Sábado
+    0: 1,
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 5,
+    5: 6,
+    6: 7,
   };
 
   for (const day of selectedDays) {
@@ -101,7 +97,16 @@ export async function scheduleNotification(medicationName, hour, minute, selecte
 }
 
 export async function cancelNotification(notificationId) {
+  if (!notificationId) {
+    return;
+  }
+
   await Notifications.cancelScheduledNotificationAsync(notificationId);
+}
+
+export async function cancelNotifications(notificationIds = []) {
+  const flatIds = notificationIds.flat().filter(Boolean);
+  await Promise.all(flatIds.map(cancelNotification));
 }
 
 export async function cancelAllNotifications() {

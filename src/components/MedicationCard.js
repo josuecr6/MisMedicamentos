@@ -1,32 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { memo, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { doc, updateDoc } from 'firebase/firestore';
+
 import { db } from '../services/firebase';
-import { deleteMedication } from '../services/medicationService';
-import { COLORS, DAYS } from '../utils/theme';
+import { COLORS } from '../utils/theme';
 import { hasTimePassed } from '../utils/timeUtils';
+import { isScheduledForDate } from '../utils/dateUtils';
 import DayBadges from './DayBadges';
 
-export default function MedicationCard({ item, navigation }) {
-  const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setToday(new Date().toISOString().split('T')[0]);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+function MedicationCardComponent({ item, navigation, today }) {
+  const scheduledToday = useMemo(
+    () => isScheduledForDate(item.selectedDays),
+    [item.selectedDays]
+  );
 
   const isTakenAtTime = (time) => {
     const key = `${today}_${time}`;
-    return item.takenTimes && item.takenTimes.includes(key);
+    return item.takenTimes?.includes(key) ?? false;
   };
 
   const getTimeBadgeStyle = (time) => {
     const taken = isTakenAtTime(time);
     const passed = hasTimePassed(time);
-    if (taken)  return styles.timeBadgeTaken;
+
+    if (!scheduledToday) return styles.timeBadgeInactive;
+    if (taken) return styles.timeBadgeTaken;
     if (passed) return styles.timeBadgePending;
     return styles.timeBadgeUpcoming;
   };
@@ -34,75 +33,53 @@ export default function MedicationCard({ item, navigation }) {
   const getTimeTextStyle = (time) => {
     const taken = isTakenAtTime(time);
     const passed = hasTimePassed(time);
-    if (taken)  return styles.timeBadgeTextTaken;
+
+    if (!scheduledToday) return styles.timeBadgeTextInactive;
+    if (taken) return styles.timeBadgeTextTaken;
     if (passed) return styles.timeBadgeTextPending;
     return styles.timeBadgeTextUpcoming;
   };
 
   const handleToggleTime = async (time) => {
+    if (!scheduledToday && !isTakenAtTime(time)) {
+      return;
+    }
+
+    if (!hasTimePassed(time) && !isTakenAtTime(time)) {
+      return;
+    }
+
     const key = `${today}_${time}`;
     const currentTakenTimes = item.takenTimes || [];
     let updatedTakenTimes;
 
     if (currentTakenTimes.includes(key)) {
-      updatedTakenTimes = currentTakenTimes.filter(t => t !== key);
+      updatedTakenTimes = currentTakenTimes.filter((currentTime) => currentTime !== key);
     } else {
       updatedTakenTimes = [...currentTakenTimes, key];
     }
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    updatedTakenTimes = updatedTakenTimes.filter(t => {
-      const datePart = t.split('_')[0];
-      return new Date(datePart) >= thirtyDaysAgo;
+    updatedTakenTimes = updatedTakenTimes.filter((entry) => {
+      const datePart = entry.split('_')[0];
+      return new Date(`${datePart}T00:00:00`) >= thirtyDaysAgo;
     });
 
     await updateDoc(doc(db, 'medications', item.id), { takenTimes: updatedTakenTimes });
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Eliminar medicamento',
-      `¿Qué deseas hacer con ${item.name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar sin guardar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteMedication(item, false);
-            } catch {
-              Alert.alert('Error', 'No se pudo eliminar el medicamento');
-            }
-          }
-        },
-        {
-          text: 'Guardar en historial',
-          onPress: async () => {
-            try {
-              await deleteMedication(item, true);
-              Alert.alert('Éxito', 'Medicamento guardado en el historial');
-            } catch {
-              Alert.alert('Error', 'No se pudo eliminar el medicamento');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const allTakenToday = item.times && item.times.every(time => isTakenAtTime(time));
+  const allTakenToday = scheduledToday && item.times?.every((time) => isTakenAtTime(time));
 
   return (
     <View style={[styles.card, allTakenToday && styles.cardTaken]}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.name}</Text>
-        {allTakenToday && (
+        {allTakenToday ? (
           <View style={styles.completedBadge}>
             <Text style={styles.completedBadgeText}>✓ Completo</Text>
           </View>
-        )}
+        ) : null}
         <TouchableOpacity
           style={styles.editIcon}
           onPress={() => navigation.navigate('EditMedication', { medication: item })}
@@ -119,16 +96,21 @@ export default function MedicationCard({ item, navigation }) {
       <Text style={styles.cardText}>Para: {item.reason}</Text>
       <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
 
-      <Text style={styles.timesLabel}>Toca la hora cuando lo tomes:</Text>
+      <Text style={styles.timesLabel}>
+        {scheduledToday ? 'Toca la hora cuando lo tomes:' : 'Hoy no corresponde este medicamento'}
+      </Text>
       <View style={styles.timesList}>
-        {item.times && item.times.map((time, index) => {
+        {item.times?.map((time, index) => {
           const taken = isTakenAtTime(time);
+          const disabled = (!scheduledToday || !hasTimePassed(time)) && !taken;
+
           return (
             <TouchableOpacity
-              key={index}
-              style={getTimeBadgeStyle(time)}
+              key={`${time}-${index}`}
+              style={[getTimeBadgeStyle(time), disabled && styles.timeBadgeDisabled]}
               onPress={() => handleToggleTime(time)}
               activeOpacity={0.7}
+              disabled={disabled}
             >
               <Text style={getTimeTextStyle(time)}>
                 {taken ? `✓ ${time}` : time}
@@ -154,7 +136,6 @@ const styles = StyleSheet.create({
   cardTaken: {
     backgroundColor: 'rgba(50,215,75,0.07)',
   },
-
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -187,7 +168,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   cardText: {
     fontSize: 13,
     color: COLORS.textMuted,
@@ -207,8 +187,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-
-  // Sin bordes — solo fondo y texto
   timeBadgeUpcoming: {
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -227,7 +205,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: 'rgba(50,215,75,0.12)',
   },
-
+  timeBadgeInactive: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: COLORS.secondary,
+  },
+  timeBadgeDisabled: {
+    opacity: 0.6,
+  },
   timeBadgeTextUpcoming: {
     color: COLORS.textSub,
     fontSize: 15,
@@ -243,4 +229,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  timeBadgeTextInactive: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
+
+const MedicationCard = memo(MedicationCardComponent);
+export default MedicationCard;
