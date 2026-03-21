@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
 } from 'react-native';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { deleteMedication } from '../services/medicationService';
-import { requestPermissions, scheduleNotification, cancelNotification } from '../utils/notifications';
+import { cancelNotification, requestPermissions, scheduleNotification } from '../utils/notifications';
 import { COLORS, DAYS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
 import { convertTo24Hour, sortTimes } from '../utils/timeUtils';
@@ -24,7 +24,9 @@ export default function EditMedicationScreen({ route, navigation }) {
   const [reason, setReason] = useState(medication.reason);
   const [doctor, setDoctor] = useState(medication.doctor);
   const [times, setTimes] = useState(medication.times || ['08:00 AM']);
-  const [selectedDays, setSelectedDays] = useState(medication.selectedDays || [0,1,2,3,4,5,6]);
+  const [selectedDays, setSelectedDays] = useState(
+    medication.selectedDays || [0, 1, 2, 3, 4, 5, 6]
+  );
   const [loading, setLoading] = useState(false);
 
   const addTime = () => setTimes(sortTimes([...times, '08:00 AM']));
@@ -49,7 +51,7 @@ export default function EditMedicationScreen({ route, navigation }) {
         Alert.alert('Error', 'Debe seleccionar al menos un día');
         return;
       }
-      setSelectedDays(selectedDays.filter(d => d !== dayIndex));
+      setSelectedDays(selectedDays.filter((d) => d !== dayIndex));
     } else {
       setSelectedDays([...selectedDays, dayIndex]);
     }
@@ -63,8 +65,7 @@ export default function EditMedicationScreen({ route, navigation }) {
     try {
       setLoading(true);
 
-      // M1 — cancelar correctamente las notificaciones anteriores
-      // antes de programar las nuevas
+      // CORRECCIÓN: cancelar las notificaciones viejas correctamente
       if (medication.notificationIds && medication.notificationIds.length > 0) {
         for (const id of medication.notificationIds) {
           await cancelNotification(id);
@@ -77,11 +78,11 @@ export default function EditMedicationScreen({ route, navigation }) {
         return;
       }
 
-      // Programar las nuevas notificaciones con los horarios actualizados
+      // Programar nuevas notificaciones
       const notificationIds = [];
       for (const time of times) {
         const { hour, minute } = convertTo24Hour(time);
-        const id = await scheduleNotification(name, hour, minute, selectedDays);
+        const id = await scheduleNotification(name, hour, minute);
         notificationIds.push(id);
       }
 
@@ -91,7 +92,7 @@ export default function EditMedicationScreen({ route, navigation }) {
         doctor,
         times,
         selectedDays,
-        notificationIds
+        notificationIds,
       });
 
       Alert.alert('Éxito', 'Medicamento actualizado correctamente');
@@ -119,7 +120,7 @@ export default function EditMedicationScreen({ route, navigation }) {
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
-          }
+          },
         },
         {
           text: 'Guardar en historial',
@@ -131,8 +132,8 @@ export default function EditMedicationScreen({ route, navigation }) {
             } catch (error) {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -167,17 +168,11 @@ export default function EditMedicationScreen({ route, navigation }) {
 
       <Text style={commonStyles.label}>Horarios</Text>
       {times.map((time, index) => (
-        <View key={index} style={styles.timeRow}>
+        <View key={`time-${index}`} style={styles.timeRow}>
           <View style={styles.timePickerWrapper}>
-            <TimePicker
-              value={time}
-              onChange={(value) => updateTime(index, value)}
-            />
+            <TimePicker value={time} onChange={(value) => updateTime(index, value)} />
           </View>
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={() => removeTime(index)}
-          >
+          <TouchableOpacity style={styles.removeButton} onPress={() => removeTime(index)}>
             <Text style={styles.removeButtonText}>Eliminar</Text>
           </TouchableOpacity>
         </View>
@@ -192,16 +187,12 @@ export default function EditMedicationScreen({ route, navigation }) {
         {DAYS.map((day, index) => (
           <TouchableOpacity
             key={index}
-            style={[
-              styles.dayButton,
-              selectedDays.includes(index) && styles.dayButtonActive
-            ]}
+            style={[styles.dayButton, selectedDays.includes(index) && styles.dayButtonActive]}
             onPress={() => toggleDay(index)}
           >
-            <Text style={[
-              styles.dayText,
-              selectedDays.includes(index) && styles.dayTextActive
-            ]}>
+            <Text
+              style={[styles.dayText, selectedDays.includes(index) && styles.dayTextActive]}
+            >
               {day}
             </Text>
           </TouchableOpacity>
@@ -218,10 +209,7 @@ export default function EditMedicationScreen({ route, navigation }) {
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={commonStyles.deleteButton}
-        onPress={handleDelete}
-      >
+      <TouchableOpacity style={commonStyles.deleteButton} onPress={handleDelete}>
         <Text style={commonStyles.deleteButtonText}>Eliminar medicamento</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -233,19 +221,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    gap: 8
+    gap: 8,
   },
   timePickerWrapper: {
-    flex: 1
+    flex: 1,
   },
   removeButton: {
     backgroundColor: COLORS.danger,
     padding: 12,
-    borderRadius: 8
+    borderRadius: 8,
   },
   removeButtonText: {
     color: COLORS.text,
-    fontSize: 14
+    fontSize: 14,
   },
   addTimeButton: {
     borderWidth: 1,
@@ -253,17 +241,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 16,
   },
   addTimeText: {
     color: COLORS.accent,
-    fontSize: 14
+    fontSize: 14,
   },
   daysRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 24
+    marginBottom: 24,
   },
   dayButton: {
     borderWidth: 1,
@@ -272,18 +260,18 @@ const styles = StyleSheet.create({
     padding: 10,
     minWidth: 44,
     alignItems: 'center',
-    backgroundColor: COLORS.secondary
+    backgroundColor: COLORS.secondary,
   },
   dayButtonActive: {
     backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent
+    borderColor: COLORS.accent,
   },
   dayText: {
     color: COLORS.textMuted,
-    fontSize: 13
+    fontSize: 13,
   },
   dayTextActive: {
     color: COLORS.bg,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });

@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -11,20 +12,12 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-if (__DEV__) {
-  const missing = Object.entries(firebaseConfig)
-    .filter(([, v]) => !v)
-    .map(([k]) => k);
-
-  if (missing.length > 0) {
-    console.warn(
-      '[Firebase] Variables de entorno faltantes:',
-      missing.join(', '),
-      '\nCopia .env.example a .env y rellena los valores.'
-    );
-  }
-}
-
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// initializeAuth con AsyncStorage en vez de getAuth()
+// Esto hace que la sesión persista entre cierres de la app
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
+
 export const db = getFirestore(app);

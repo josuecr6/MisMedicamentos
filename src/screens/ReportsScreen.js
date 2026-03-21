@@ -4,9 +4,15 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  limit,
+} from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { COLORS, DAYS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
@@ -16,13 +22,20 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Sin orderBy: evita índice compuesto. Ordenamos en cliente (máx 100 docs)
     const q = query(
       collection(db, 'medicationHistory'),
-      where('userId', '==', auth.currentUser.uid)
+      where('userId', '==', auth.currentUser.uid),
+      limit(100)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      list.sort((a, b) => b.deletedAt?.toDate() - a.deletedAt?.toDate());
+      const list = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => {
+          const dateA = a.deletedAt?.toDate?.() ?? new Date(0);
+          const dateB = b.deletedAt?.toDate?.() ?? new Date(0);
+          return dateB - dateA;
+        });
       setHistory(list);
       setLoading(false);
     });
@@ -37,7 +50,7 @@ export default function ReportsScreen() {
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -61,7 +74,7 @@ export default function ReportsScreen() {
 
       <Text style={commonStyles.label}>Días:</Text>
       <Text style={styles.cardValue}>
-        {item.selectedDays?.map(d => DAYS[d]).join(', ')}
+        {item.selectedDays?.map((d) => DAYS[d]).join(', ')}
       </Text>
 
       <Text style={commonStyles.label}>Fecha de inicio:</Text>
@@ -83,9 +96,12 @@ export default function ReportsScreen() {
       ) : (
         <FlatList
           data={history}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
     </View>
@@ -94,30 +110,30 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   list: {
-    paddingBottom: 16
+    paddingBottom: 16,
   },
   cardHeader: {
-    marginBottom: 12
+    marginBottom: 12,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.accent,
-    marginBottom: 4
+    marginBottom: 4,
   },
   cardDate: {
     fontSize: 12,
-    color: COLORS.textMuted
+    color: COLORS.textMuted,
   },
   divider: {
     height: 0.5,
     backgroundColor: COLORS.surface,
-    marginBottom: 12
+    marginBottom: 12,
   },
   cardValue: {
     fontSize: 14,
     color: COLORS.text,
     marginTop: 2,
-    marginBottom: 4
-  }
+    marginBottom: 4,
+  },
 });

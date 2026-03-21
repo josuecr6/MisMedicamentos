@@ -30,13 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files — NUNCA subir al repositorio
+# local env files
 .env
 .env.local
-.env.*.local
-
-# .env.example SÍ se versiona (plantilla sin valores reales)
-!.env.example
+.env*.local
 
 # typescript
 *.tsbuildinfo

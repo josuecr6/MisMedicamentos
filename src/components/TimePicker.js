@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView
+  ScrollView,
 } from 'react-native';
 
 const COLORS = {
@@ -14,7 +14,7 @@ const COLORS = {
   surface: '#3a3a3c',
   accent: '#ff9f0a',
   text: '#ffffff',
-  textMuted: '#8e8e93'
+  textMuted: '#8e8e93',
 };
 
 const ITEM_HEIGHT = 50;
@@ -28,18 +28,32 @@ function ScrollPicker({ items, selectedValue, onValueChange }) {
   const scrollRef = useRef(null);
   const currentIndex = items.indexOf(selectedValue);
 
-  const handleScroll = (event) => {
-    const y = event.nativeEvent.contentOffset.y;
-    const index = Math.round(y / ITEM_HEIGHT);
-    const clampedIndex = Math.max(0, Math.min(index, items.length - 1));
-    if (items[clampedIndex] !== selectedValue) {
-      onValueChange(items[clampedIndex]);
-    }
-  };
+  // useCallback evita recrear estas funciones en cada render del Modal
+  const handleScroll = useCallback(
+    (event) => {
+      const y = event.nativeEvent.contentOffset.y;
+      const index = Math.round(y / ITEM_HEIGHT);
+      const clampedIndex = Math.max(0, Math.min(index, items.length - 1));
+      if (items[clampedIndex] !== selectedValue) {
+        onValueChange(items[clampedIndex]);
+      }
+    },
+    [items, selectedValue, onValueChange]
+  );
 
-  const scrollToIndex = (index) => {
-    scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
-  };
+  const scrollToIndex = useCallback(
+    (index) => {
+      scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
+    },
+    []
+  );
+
+  const handleContentSizeChange = useCallback(() => {
+    scrollRef.current?.scrollTo({
+      y: currentIndex * ITEM_HEIGHT,
+      animated: false,
+    });
+  }, [currentIndex]);
 
   return (
     <View style={picker.container}>
@@ -51,18 +65,14 @@ function ScrollPicker({ items, selectedValue, onValueChange }) {
         decelerationRate="fast"
         onMomentumScrollEnd={handleScroll}
         contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
-        onContentSizeChange={() => {
-          scrollRef.current?.scrollTo({
-            y: currentIndex * ITEM_HEIGHT,
-            animated: false
-          });
-        }}
+        onContentSizeChange={handleContentSizeChange}
       >
         {items.map((item, index) => {
           const isSelected = item === selectedValue;
           return (
+            // Key estable: combina valor + índice para evitar colisiones
             <TouchableOpacity
-              key={item}
+              key={`${item}-${index}`}
               style={picker.item}
               onPress={() => {
                 onValueChange(item);
@@ -84,7 +94,7 @@ const picker = StyleSheet.create({
   container: {
     height: ITEM_HEIGHT * VISIBLE_ITEMS,
     overflow: 'hidden',
-    position: 'relative'
+    position: 'relative',
   },
   selector: {
     position: 'absolute',
@@ -95,54 +105,60 @@ const picker = StyleSheet.create({
     borderTopWidth: 1.5,
     borderBottomWidth: 1.5,
     borderColor: COLORS.accent,
-    zIndex: 1
+    zIndex: 1,
   },
   item: {
     height: ITEM_HEIGHT,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   itemText: {
     fontSize: 22,
     color: COLORS.textMuted,
-    fontWeight: '400'
+    fontWeight: '400',
   },
   itemTextSelected: {
     fontSize: 26,
     color: COLORS.accent,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });
+
+function parseTime(val) {
+  if (!val) return { hour: '08', minute: '00', period: 'AM' };
+  const parts = val.split(' ');
+  const [h, m] = parts[0].split(':');
+  return { hour: h, minute: m, period: parts[1] || 'AM' };
+}
 
 export default function TimePicker({ value, onChange }) {
   const [visible, setVisible] = useState(false);
-
-  const parseTime = (val) => {
-    if (!val) return { hour: '08', minute: '00', period: 'AM' };
-    const parts = val.split(' ');
-    const [h, m] = parts[0].split(':');
-    return { hour: h, minute: m, period: parts[1] || 'AM' };
-  };
 
   const parsed = parseTime(value);
   const [selectedHour, setSelectedHour] = useState(parsed.hour);
   const [selectedMinute, setSelectedMinute] = useState(parsed.minute);
   const [selectedPeriod, setSelectedPeriod] = useState(parsed.period);
 
-  const handleConfirm = () => {
+  const handleOpen = useCallback(() => {
+    // Sincronizar estado con el value actual al abrir
+    const p = parseTime(value);
+    setSelectedHour(p.hour);
+    setSelectedMinute(p.minute);
+    setSelectedPeriod(p.period);
+    setVisible(true);
+  }, [value]);
+
+  const handleConfirm = useCallback(() => {
     onChange(`${selectedHour}:${selectedMinute} ${selectedPeriod}`);
     setVisible(false);
-  };
+  }, [onChange, selectedHour, selectedMinute, selectedPeriod]);
+
+  const handleCancel = useCallback(() => setVisible(false), []);
 
   return (
     <View>
-      <TouchableOpacity
-        style={styles.timeButton}
-        onPress={() => setVisible(true)}
-      >
-        <Text style={styles.timeButtonText}>
-          {value || '08:00 AM'}
-        </Text>
+      <TouchableOpacity style={styles.timeButton} onPress={handleOpen}>
+        <Text style={styles.timeButtonText}>{value || '08:00 AM'}</Text>
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="slide">
@@ -184,16 +200,10 @@ export default function TimePicker({ value, onChange }) {
             </View>
 
             <View style={styles.buttons}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setVisible(false)}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleConfirm}
-              >
+              <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
                 <Text style={styles.confirmText}>Confirmar</Text>
               </TouchableOpacity>
             </View>
@@ -212,18 +222,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
-    backgroundColor: COLORS.secondary
+    backgroundColor: COLORS.secondary,
   },
   timeButtonText: {
     color: COLORS.accent,
     fontSize: 18,
     fontWeight: 'bold',
-    letterSpacing: 1
+    letterSpacing: 1,
   },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end'
+    justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: COLORS.secondary,
@@ -231,28 +241,28 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
     paddingBottom: 40,
-    paddingTop: 16
+    paddingTop: 16,
   },
   sheetHeader: {
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 8,
   },
   sheetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.accent,
-    marginBottom: 4
+    marginBottom: 4,
   },
   pickersRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginVertical: 16
+    marginVertical: 16,
   },
   pickerCol: {
     flex: 1,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   pickerLabel: {
     fontSize: 12,
@@ -260,18 +270,18 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 1
+    letterSpacing: 1,
   },
   colon: {
     fontSize: 28,
     fontWeight: 'bold',
     color: COLORS.accent,
-    marginTop: 24
+    marginTop: 24,
   },
   buttons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8
+    marginTop: 8,
   },
   cancelButton: {
     flex: 1,
@@ -279,23 +289,23 @@ const styles = StyleSheet.create({
     borderColor: COLORS.surface,
     padding: 14,
     borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   cancelText: {
     color: COLORS.textMuted,
     fontSize: 15,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   confirmButton: {
     flex: 1,
     backgroundColor: COLORS.accent,
     padding: 14,
     borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   confirmText: {
     color: COLORS.bg,
     fontSize: 15,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   FlatList,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import {
   collection,
@@ -17,17 +17,12 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  setDoc
+  setDoc,
+  limit,
 } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
-
-// Valida formato de email antes de consultar Firestore
-const isValidEmail = (email) => {
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return regex.test(email);
-};
 
 export default function PersonsScreen() {
   const [persons, setPersons] = useState([]);
@@ -38,64 +33,45 @@ export default function PersonsScreen() {
   useEffect(() => {
     const q = query(
       collection(db, 'sharedAccess'),
-      where('ownerId', '==', auth.currentUser.uid)
+      where('ownerId', '==', auth.currentUser.uid),
+      limit(50)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setPersons(list);
       setLoading(false);
     });
     return unsubscribe;
   }, []);
 
-  const handleAddPerson = async () => {
-    const sanitizedEmail = email.toLowerCase().trim();
-
-    // H2 — validar formato antes de tocar Firestore
-    if (!sanitizedEmail) {
+  const handleAddPerson = useCallback(async () => {
+    const trimmedEmail = email.toLowerCase().trim();
+    if (!trimmedEmail) {
       Alert.alert('Error', 'Por favor ingresa un correo');
       return;
     }
-
-    if (!isValidEmail(sanitizedEmail)) {
-      Alert.alert('Error', 'El formato del correo no es válido');
-      return;
-    }
-
-    if (sanitizedEmail === auth.currentUser.email) {
+    if (trimmedEmail === auth.currentUser.email) {
       Alert.alert('Error', 'No puedes agregarte a ti mismo');
       return;
     }
-
-    const alreadyAdded = persons.find(
-      p => p.guestEmail === sanitizedEmail
-    );
-    if (alreadyAdded) {
-      // Mensaje genérico — no confirma si el email existe o no
-      Alert.alert('Aviso', 'Ya tienes acceso compartido con ese usuario');
-      return;
-    }
-
     try {
       setSearching(true);
       const q = query(
         collection(db, 'users'),
-        where('email', '==', sanitizedEmail)
+        where('email', '==', trimmedEmail),
+        limit(1)
       );
       const snapshot = await getDocs(q);
-
-      // Mensaje genérico tanto si no existe como si hubo error
-      // para no permitir enumeración de usuarios registrados
       if (snapshot.empty) {
-        Alert.alert(
-          'Aviso',
-          'Si ese correo está registrado, se ha dado acceso correctamente.'
-        );
+        Alert.alert('Error', 'No existe ningún usuario con ese correo');
         return;
       }
-
       const userFound = snapshot.docs[0].data();
-
+      const alreadyAdded = persons.find((p) => p.guestId === userFound.uid);
+      if (alreadyAdded) {
+        Alert.alert('Error', 'Ya tienes acceso compartido con ese usuario');
+        return;
+      }
       await setDoc(
         doc(db, 'sharedAccess', `${auth.currentUser.uid}_${userFound.uid}`),
         {
@@ -104,24 +80,19 @@ export default function PersonsScreen() {
           guestId: userFound.uid,
           guestEmail: userFound.email,
           guestName: userFound.name,
-          createdAt: new Date()
+          createdAt: new Date(),
         }
       );
-
       setEmail('');
-      Alert.alert(
-        'Aviso',
-        'Si ese correo está registrado, se ha dado acceso correctamente.'
-      );
-    } catch (error) {
-      // Error genérico — no revela detalles internos
-      Alert.alert('Error', 'No se pudo completar la operación');
+      Alert.alert('Éxito', `${userFound.name} ahora puede ver tus medicamentos`);
+    } catch {
+      Alert.alert('Error', 'No se pudo agregar la persona');
     } finally {
       setSearching(false);
     }
-  };
+  }, [email, persons]);
 
-  const handleDeletePerson = async (id) => {
+  const handleDeletePerson = useCallback((id) => {
     Alert.alert(
       'Eliminar acceso',
       '¿Estás seguro que deseas quitar el acceso a esta persona?',
@@ -130,26 +101,31 @@ export default function PersonsScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: async () => await deleteDoc(doc(db, 'sharedAccess', id))
-        }
+          onPress: async () => await deleteDoc(doc(db, 'sharedAccess', id)),
+        },
       ]
     );
-  };
+  }, []);
 
-  const renderItem = ({ item }) => (
-    <View style={commonStyles.card}>
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardName}>{item.guestName}</Text>
-        <Text style={styles.cardEmail}>{item.guestEmail}</Text>
+  const renderItem = useCallback(
+    ({ item }) => (
+      <View style={commonStyles.card}>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardName}>{item.guestName}</Text>
+          <Text style={styles.cardEmail}>{item.guestEmail}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDeletePerson(item.id)}
+        >
+          <Text style={styles.deleteButtonText}>Quitar</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDeletePerson(item.id)}
-      >
-        <Text style={styles.deleteButtonText}>Quitar</Text>
-      </TouchableOpacity>
-    </View>
+    ),
+    [handleDeletePerson]
   );
+
+  const keyExtractor = useCallback((item) => item.id, []);
 
   return (
     <View style={commonStyles.container}>
@@ -167,7 +143,6 @@ export default function PersonsScreen() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
-          autoCorrect={false}
         />
         <TouchableOpacity
           style={commonStyles.button}
@@ -175,7 +150,7 @@ export default function PersonsScreen() {
           disabled={searching}
         >
           <Text style={commonStyles.buttonText}>
-            {searching ? 'Procesando...' : '+ Dar acceso'}
+            {searching ? 'Buscando...' : '+ Dar acceso'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -189,9 +164,12 @@ export default function PersonsScreen() {
       ) : (
         <FlatList
           data={persons}
-          keyExtractor={item => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
     </View>
@@ -200,33 +178,33 @@ export default function PersonsScreen() {
 
 const styles = StyleSheet.create({
   form: {
-    marginBottom: 24
+    marginBottom: 24,
   },
   list: {
-    paddingBottom: 16
+    paddingBottom: 16,
   },
   cardInfo: {
-    flex: 1
+    flex: 1,
   },
   cardName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.text
+    color: COLORS.text,
   },
   cardEmail: {
     fontSize: 13,
     color: COLORS.textMuted,
-    marginTop: 2
+    marginTop: 2,
   },
   deleteButton: {
     backgroundColor: COLORS.danger,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8
+    borderRadius: 8,
   },
   deleteButtonText: {
     color: COLORS.text,
     fontSize: 13,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });
