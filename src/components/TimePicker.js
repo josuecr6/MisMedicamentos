@@ -5,95 +5,104 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
+  FlatList,
 } from 'react-native';
+import { COLORS } from '../utils/theme';
 
-const COLORS = {
-  bg: '#1c1c1e',
-  secondary: '#2c2c2e',
-  surface: '#3a3a3c',
-  accent: '#ff9f0a',
-  text: '#ffffff',
-  textMuted: '#8e8e93',
-};
+const ITEM_HEIGHT = 54;
+const VISIBLE     = 5;
+const REPEAT      = 500;
 
-const ITEM_HEIGHT = 50;
-const VISIBLE_ITEMS = 5;
+const HOURS_BASE = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 
-const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-const periods = ['AM', 'PM'];
+function buildList(base) {
+  const arr = [];
+  for (let i = 0; i < REPEAT; i++) {
+    for (let j = 0; j < base.length; j++) {
+      arr.push(`${i}-${j}`);
+    }
+  }
+  return arr;
+}
 
-function ScrollPicker({ items, selectedValue, onValueChange }) {
-  const scrollRef = useRef(null);
-  const currentIndex = items.indexOf(selectedValue);
+const HOURS_KEYS = buildList(HOURS_BASE);
 
-  // useCallback evita recrear estas funciones en cada render del Modal
-  const handleScroll = useCallback(
-    (event) => {
-      const y = event.nativeEvent.contentOffset.y;
-      const index = Math.round(y / ITEM_HEIGHT);
-      const clampedIndex = Math.max(0, Math.min(index, items.length - 1));
-      if (items[clampedIndex] !== selectedValue) {
-        onValueChange(items[clampedIndex]);
-      }
-    },
-    [items, selectedValue, onValueChange]
-  );
+function getInitialIndex(value) {
+  const idx     = HOURS_BASE.indexOf(value);
+  const safeIdx = idx >= 0 ? idx : 0;
+  return Math.floor(REPEAT / 2) * HOURS_BASE.length + safeIdx;
+}
 
-  const scrollToIndex = useCallback(
-    (index) => {
-      scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
-    },
-    []
-  );
+// Extrae solo la hora (ej: "08:00 AM" → "08", "03 PM" → "03")
+function parseHour(val) {
+  if (!val) return { hour: '08', period: 'AM' };
+  const parts  = val.split(' ');
+  const period = parts[1] || 'AM';
+  const hour   = parts[0].split(':')[0];
+  return { hour, period };
+}
 
-  const handleContentSizeChange = useCallback(() => {
-    scrollRef.current?.scrollTo({
-      y: currentIndex * ITEM_HEIGHT,
-      animated: false,
-    });
-  }, [currentIndex]);
+// Devuelve el formato completo con minutos en :00
+export function buildTimeString(hour, period) {
+  return `${hour}:00 ${period}`;
+}
+
+function Drum({ selectedValue, onSelect }) {
+  const ref = useRef(null);
+
+  const onScrollEnd = useCallback((e) => {
+    const y   = e.nativeEvent.contentOffset.y;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const mod = ((idx % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
+    onSelect(HOURS_BASE[mod]);
+  }, [onSelect]);
+
+  const getItemLayout = useCallback((_, index) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  const renderItem = useCallback(({ index }) => {
+    const mod        = ((index % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
+    const val        = HOURS_BASE[mod];
+    const isSelected = val === selectedValue;
+    return (
+      <View style={s.item}>
+        <Text style={[s.text, isSelected && s.textSelected]}>{val}</Text>
+      </View>
+    );
+  }, [selectedValue]);
 
   return (
-    <View style={picker.container}>
-      <View style={picker.selector} pointerEvents="none" />
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
+    <View style={s.wrap}>
+      <View style={s.selector} pointerEvents="none" />
+      <FlatList
+        ref={ref}
+        data={HOURS_KEYS}
+        renderItem={renderItem}
+        keyExtractor={(item) => item}
+        getItemLayout={getItemLayout}
+        initialScrollIndex={getInitialIndex(selectedValue)}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        onMomentumScrollEnd={handleScroll}
-        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
-        onContentSizeChange={handleContentSizeChange}
-      >
-        {items.map((item, index) => {
-          const isSelected = item === selectedValue;
-          return (
-            // Key estable: combina valor + índice para evitar colisiones
-            <TouchableOpacity
-              key={`${item}-${index}`}
-              style={picker.item}
-              onPress={() => {
-                onValueChange(item);
-                scrollToIndex(index);
-              }}
-            >
-              <Text style={[picker.itemText, isSelected && picker.itemTextSelected]}>
-                {item}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+        showsVerticalScrollIndicator={false}
+        onMomentumScrollEnd={onScrollEnd}
+        onScrollEndDrag={onScrollEnd}
+        windowSize={5}
+        maxToRenderPerBatch={20}
+        initialNumToRender={VISIBLE + 4}
+        removeClippedSubviews={false}
+      />
     </View>
   );
 }
 
-const picker = StyleSheet.create({
-  container: {
-    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+const s = StyleSheet.create({
+  wrap: {
+    height: ITEM_HEIGHT * VISIBLE,
     overflow: 'hidden',
+    width: 100,
     position: 'relative',
   },
   selector: {
@@ -102,9 +111,8 @@ const picker = StyleSheet.create({
     left: 0,
     right: 0,
     height: ITEM_HEIGHT,
-    borderTopWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: COLORS.accent,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
     zIndex: 1,
   },
   item: {
@@ -112,200 +120,178 @@ const picker = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemText: {
-    fontSize: 22,
+  text: {
+    fontSize: 24,
+    fontWeight: '600',
     color: COLORS.textMuted,
-    fontWeight: '400',
   },
-  itemTextSelected: {
-    fontSize: 26,
+  textSelected: {
+    fontSize: 36,
+    fontWeight: '700',
     color: COLORS.accent,
-    fontWeight: 'bold',
   },
 });
 
-function parseTime(val) {
-  if (!val) return { hour: '08', minute: '00', period: 'AM' };
-  const parts = val.split(' ');
-  const [h, m] = parts[0].split(':');
-  return { hour: h, minute: m, period: parts[1] || 'AM' };
-}
+// ─── Componente exportado ──────────────────────────────────────────────────────
 
-export default function TimePicker({ value, onChange }) {
-  const [visible, setVisible] = useState(false);
+export default function TimePicker({ value, onChange, visible, onClose }) {
+  const parsed = parseHour(value);
+  const [selHour,   setSelHour]   = useState(parsed.hour);
+  const [selPeriod, setSelPeriod] = useState(parsed.period);
 
-  const parsed = parseTime(value);
-  const [selectedHour, setSelectedHour] = useState(parsed.hour);
-  const [selectedMinute, setSelectedMinute] = useState(parsed.minute);
-  const [selectedPeriod, setSelectedPeriod] = useState(parsed.period);
+  // Sync cuando se abre con un value diferente
+  const prevVisible = useRef(false);
+  if (visible && !prevVisible.current) {
+    const p = parseHour(value);
+    if (p.hour !== selHour)     setSelHour(p.hour);
+    if (p.period !== selPeriod) setSelPeriod(p.period);
+  }
+  prevVisible.current = visible;
 
-  const handleOpen = useCallback(() => {
-    // Sincronizar estado con el value actual al abrir
-    const p = parseTime(value);
-    setSelectedHour(p.hour);
-    setSelectedMinute(p.minute);
-    setSelectedPeriod(p.period);
-    setVisible(true);
-  }, [value]);
-
-  const handleConfirm = useCallback(() => {
-    onChange(`${selectedHour}:${selectedMinute} ${selectedPeriod}`);
-    setVisible(false);
-  }, [onChange, selectedHour, selectedMinute, selectedPeriod]);
-
-  const handleCancel = useCallback(() => setVisible(false), []);
+  const handleConfirm = () => {
+    onChange(buildTimeString(selHour, selPeriod));
+    onClose();
+  };
 
   return (
-    <View>
-      <TouchableOpacity style={styles.timeButton} onPress={handleOpen}>
-        <Text style={styles.timeButtonText}>{value || '08:00 AM'}</Text>
-      </TouchableOpacity>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>Seleccionar hora</Text>
 
-      <Modal visible={visible} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Seleccionar hora</Text>
-            </View>
+          <View style={styles.pickerRow}>
+            {/* Drum de horas */}
+            <Drum selectedValue={selHour} onSelect={setSelHour} />
 
-            <View style={styles.pickersRow}>
-              <View style={styles.pickerCol}>
-                <Text style={styles.pickerLabel}>Hora</Text>
-                <ScrollPicker
-                  items={hours}
-                  selectedValue={selectedHour}
-                  onValueChange={setSelectedHour}
-                />
-              </View>
+            {/* :00 fijo */}
+            <Text style={styles.fixedMinutes}>:00</Text>
 
-              <Text style={styles.colon}>:</Text>
-
-              <View style={styles.pickerCol}>
-                <Text style={styles.pickerLabel}>Min</Text>
-                <ScrollPicker
-                  items={minutes}
-                  selectedValue={selectedMinute}
-                  onValueChange={setSelectedMinute}
-                />
-              </View>
-
-              <View style={styles.pickerCol}>
-                <Text style={styles.pickerLabel}>AM/PM</Text>
-                <ScrollPicker
-                  items={periods}
-                  selectedValue={selectedPeriod}
-                  onValueChange={setSelectedPeriod}
-                />
-              </View>
-            </View>
-
-            <View style={styles.buttons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                <Text style={styles.cancelText}>Cancelar</Text>
+            {/* AM / PM */}
+            <View style={styles.ampmCol}>
+              <TouchableOpacity
+                style={[styles.ampmBtn, selPeriod === 'AM' && styles.ampmActive]}
+                onPress={() => setSelPeriod('AM')}
+              >
+                <Text style={[styles.ampmText, selPeriod === 'AM' && styles.ampmTextActive]}>AM</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-                <Text style={styles.confirmText}>Confirmar</Text>
+              <TouchableOpacity
+                style={[styles.ampmBtn, selPeriod === 'PM' && styles.ampmActive]}
+                onPress={() => setSelPeriod('PM')}
+              >
+                <Text style={[styles.ampmText, selPeriod === 'PM' && styles.ampmTextActive]}>PM</Text>
               </TouchableOpacity>
             </View>
           </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.btnCancel} onPress={onClose}>
+              <Text style={styles.btnCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnConfirm} onPress={handleConfirm}>
+              <Text style={styles.btnConfirmText}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </Modal>
-    </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  timeButton: {
-    borderWidth: 1.5,
-    borderColor: COLORS.accent,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    backgroundColor: COLORS.secondary,
-  },
-  timeButtonText: {
-    color: COLORS.accent,
-    fontSize: 18,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.bgCard ?? '#16181f',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
     paddingBottom: 40,
-    paddingTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: COLORS.surface,
   },
-  sheetHeader: {
-    alignItems: 'center',
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.surface,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginBottom: 4,
-  },
-  pickersRow: {
+  pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 16,
+    padding: 16,
+    gap: 16,
     marginVertical: 16,
   },
-  pickerCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  pickerLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  fixedMinutes: {
+    fontSize: 36,
+    fontWeight: '700',
     color: COLORS.textMuted,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
-  colon: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginTop: 24,
-  },
-  buttons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: COLORS.surface,
-    padding: 14,
-    borderRadius: 12,
+  ampmCol: {
     alignItems: 'center',
+    gap: 8,
   },
-  cancelText: {
-    color: COLORS.textMuted,
-    fontSize: 15,
-    fontWeight: 'bold',
+  ampmBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: COLORS.surface,
   },
-  confirmButton: {
-    flex: 1,
+  ampmActive: {
     backgroundColor: COLORS.accent,
-    padding: 14,
+  },
+  ampmText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  ampmTextActive: {
+    color: '#ffffff',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  btnCancel: {
+    flex: 1,
+    backgroundColor: COLORS.secondary,
     borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  confirmText: {
-    color: COLORS.bg,
+  btnCancelText: {
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  btnConfirm: {
+    flex: 2,
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  btnConfirmText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

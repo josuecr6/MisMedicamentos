@@ -11,30 +11,60 @@ import {
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { deleteMedication } from '../services/medicationService';
-import { cancelNotification, requestPermissions, scheduleNotification } from '../utils/notifications';
+import { requestPermissions, scheduleNotification, cancelNotification } from '../utils/notifications';
 import { COLORS, DAYS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
 import { convertTo24Hour, sortTimes } from '../utils/timeUtils';
+import Svg, { Rect } from 'react-native-svg';
 import TimePicker from '../components/TimePicker';
+
+function DisketteIcon({ size = 26, color = COLORS.accent }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="2" y="2" width="20" height="20" rx="3" fill={color} />
+      <Rect x="6" y="2" width="10" height="7" rx="1" fill={COLORS.bgCard ?? '#16181f'} />
+      <Rect x="8" y="3.5" width="2" height="4" rx="0.5" fill={color} opacity="0.45" />
+      <Rect x="5" y="13" width="14" height="7" rx="1.5" fill={COLORS.bgCard ?? '#16181f'} />
+      <Rect x="8" y="15" width="8" height="3" rx="0.75" fill={color} opacity="0.35" />
+    </Svg>
+  );
+}
 
 export default function EditMedicationScreen({ route, navigation }) {
   const { medication } = route.params;
 
-  const [name, setName] = useState(medication.name);
-  const [reason, setReason] = useState(medication.reason);
-  const [doctor, setDoctor] = useState(medication.doctor);
-  const [times, setTimes] = useState(medication.times || ['08:00 AM']);
-  const [selectedDays, setSelectedDays] = useState(
-    medication.selectedDays || [0, 1, 2, 3, 4, 5, 6]
-  );
-  const [loading, setLoading] = useState(false);
+  const [name,         setName]         = useState(medication.name);
+  const [reason,       setReason]       = useState(medication.reason);
+  const [doctor,       setDoctor]       = useState(medication.doctor);
+  const [times,        setTimes]        = useState(medication.times || []);
+  const [selectedDays, setSelectedDays] = useState(medication.selectedDays || [0,1,2,3,4,5,6]);
+  const [loading,      setLoading]      = useState(false);
 
-  const addTime = () => setTimes(sortTimes([...times, '08:00 AM']));
+  // Control del picker
+  const [pickerVisible,   setPickerVisible]   = useState(false);
+  const [editingIndex,    setEditingIndex]    = useState(null);
+  const [pickerInitValue, setPickerInitValue] = useState('08:00 AM');
 
-  const updateTime = (index, value) => {
-    const updated = [...times];
-    updated[index] = value;
-    setTimes(sortTimes(updated));
+  const handleAddTime = () => {
+    setEditingIndex(null);
+    setPickerInitValue('08:00 AM');
+    setPickerVisible(true);
+  };
+
+  const handleEditTime = (index) => {
+    setEditingIndex(index);
+    setPickerInitValue(times[index]);
+    setPickerVisible(true);
+  };
+
+  const handlePickerConfirm = (value) => {
+    if (editingIndex === null) {
+      setTimes(prev => sortTimes([...prev, value]));
+    } else {
+      const updated = [...times];
+      updated[editingIndex] = value;
+      setTimes(sortTimes(updated));
+    }
   };
 
   const removeTime = (index) => {
@@ -51,7 +81,7 @@ export default function EditMedicationScreen({ route, navigation }) {
         Alert.alert('Error', 'Debe seleccionar al menos un día');
         return;
       }
-      setSelectedDays(selectedDays.filter((d) => d !== dayIndex));
+      setSelectedDays(selectedDays.filter(d => d !== dayIndex));
     } else {
       setSelectedDays([...selectedDays, dayIndex]);
     }
@@ -65,8 +95,8 @@ export default function EditMedicationScreen({ route, navigation }) {
     try {
       setLoading(true);
 
-      // CORRECCIÓN: cancelar las notificaciones viejas correctamente
-      if (medication.notificationIds && medication.notificationIds.length > 0) {
+      // Cancelar notificaciones anteriores
+      if (medication.notificationIds) {
         for (const id of medication.notificationIds) {
           await cancelNotification(id);
         }
@@ -78,21 +108,15 @@ export default function EditMedicationScreen({ route, navigation }) {
         return;
       }
 
-      // Programar nuevas notificaciones
       const notificationIds = [];
       for (const time of times) {
         const { hour, minute } = convertTo24Hour(time);
-        const id = await scheduleNotification(name, hour, minute);
+        const id = await scheduleNotification(name, hour, minute, selectedDays);
         notificationIds.push(id);
       }
 
       await updateDoc(doc(db, 'medications', medication.id), {
-        name,
-        reason,
-        doctor,
-        times,
-        selectedDays,
-        notificationIds,
+        name, reason, doctor, times, selectedDays, notificationIds,
       });
 
       Alert.alert('Éxito', 'Medicamento actualizado correctamente');
@@ -117,7 +141,7 @@ export default function EditMedicationScreen({ route, navigation }) {
             try {
               await deleteMedication(medication, false);
               navigation.goBack();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
           },
@@ -129,7 +153,7 @@ export default function EditMedicationScreen({ route, navigation }) {
               await deleteMedication(medication, true);
               Alert.alert('Éxito', 'Medicamento guardado en el historial');
               navigation.goBack();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
           },
@@ -140,7 +164,17 @@ export default function EditMedicationScreen({ route, navigation }) {
 
   return (
     <ScrollView style={commonStyles.scrollContainer}>
-      <Text style={commonStyles.title}>Editar medicamento</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Editar medicamento</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+          activeOpacity={0.7}
+        >
+          <DisketteIcon size={26} color={loading ? COLORS.textMuted : COLORS.accent} />
+        </TouchableOpacity>
+      </View>
 
       <Text style={commonStyles.label}>Nombre del medicamento</Text>
       <TextInput
@@ -167,18 +201,31 @@ export default function EditMedicationScreen({ route, navigation }) {
       />
 
       <Text style={commonStyles.label}>Horarios</Text>
-      {times.map((time, index) => (
-        <View key={`time-${index}`} style={styles.timeRow}>
-          <View style={styles.timePickerWrapper}>
-            <TimePicker value={time} onChange={(value) => updateTime(index, value)} />
-          </View>
-          <TouchableOpacity style={styles.removeButton} onPress={() => removeTime(index)}>
-            <Text style={styles.removeButtonText}>Eliminar</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
 
-      <TouchableOpacity style={styles.addTimeButton} onPress={addTime}>
+      {times.length > 0 && (
+        <View style={styles.chipsContainer}>
+          {times.map((time, index) => (
+            <View key={index} style={styles.chip}>
+              <TouchableOpacity
+                style={styles.chipLabel}
+                onPress={() => handleEditTime(index)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.chipText}>{time}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.chipRemove}
+                onPress={() => removeTime(index)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.chipRemoveText}>×</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <TouchableOpacity style={styles.addTimeButton} onPress={handleAddTime}>
         <Text style={styles.addTimeText}>+ Agregar horario</Text>
       </TouchableOpacity>
 
@@ -190,62 +237,101 @@ export default function EditMedicationScreen({ route, navigation }) {
             style={[styles.dayButton, selectedDays.includes(index) && styles.dayButtonActive]}
             onPress={() => toggleDay(index)}
           >
-            <Text
-              style={[styles.dayText, selectedDays.includes(index) && styles.dayTextActive]}
-            >
+            <Text style={[styles.dayText, selectedDays.includes(index) && styles.dayTextActive]}>
               {day}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <TouchableOpacity
-        style={commonStyles.button}
-        onPress={handleSave}
-        disabled={loading}
-      >
-        <Text style={commonStyles.buttonText}>
-          {loading ? 'Guardando...' : 'Guardar cambios'}
-        </Text>
-      </TouchableOpacity>
-
       <TouchableOpacity style={commonStyles.deleteButton} onPress={handleDelete}>
         <Text style={commonStyles.deleteButtonText}>Eliminar medicamento</Text>
       </TouchableOpacity>
+
+      <TimePicker
+        value={pickerInitValue}
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onChange={handlePickerConfirm}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  timeRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    justifyContent: 'space-between',
+    marginTop: 40,
+    marginBottom: 28,
   },
-  timePickerWrapper: {
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: -0.5,
     flex: 1,
   },
-  removeButton: {
-    backgroundColor: COLORS.danger,
-    padding: 12,
-    borderRadius: 8,
+  saveButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  removeButtonText: {
-    color: COLORS.text,
+  saveButtonDisabled: {
+    opacity: 0.5,
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  chipLabel: {
+    backgroundColor: COLORS.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  chipText: {
     fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: 0.3,
+  },
+  chipRemove: {
+    backgroundColor: COLORS.danger,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipRemoveText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    lineHeight: 20,
   },
   addTimeButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.accent,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   addTimeText: {
     color: COLORS.accent,
     fontSize: 14,
+    fontWeight: '600',
   },
   daysRow: {
     flexDirection: 'row',
@@ -254,24 +340,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   dayButton: {
-    borderWidth: 1,
-    borderColor: COLORS.surface,
     borderRadius: 8,
     padding: 10,
     minWidth: 44,
     alignItems: 'center',
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.surface,
   },
   dayButtonActive: {
     backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
   },
   dayText: {
     color: COLORS.textMuted,
     fontSize: 13,
+    fontWeight: '500',
   },
   dayTextActive: {
-    color: COLORS.bg,
-    fontWeight: 'bold',
+    color: '#ffffff',
+    fontWeight: '700',
   },
 });

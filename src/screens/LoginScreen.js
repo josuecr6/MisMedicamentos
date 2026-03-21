@@ -1,32 +1,115 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert
+  Alert,
+  Animated,
+  Easing
 } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
 const COLORS = {
-  bg: '#1c1c1e',
-  secondary: '#2c2c2e',
-  surface: '#3a3a3c',
-  accent: '#ff9f0a',
+  bg: '#0f1117',
+  bgCard: '#16181f',
+  secondary: '#1e2028',
+  surface: '#2a2c36',
+  accent: '#3A7BFF',
+  accentWarm: '#ff9f0a',
   text: '#ffffff',
-  textMuted: '#8e8e93'
+  textMuted: '#6b7280',
+  textSub: '#9ca3af',
+  danger: '#FF4D4D',
+  border: '#2a2c36',
 };
+
+function LogoBadgePulse() {
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.4],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 0],
+  });
+
+  return (
+    <View style={styles.logoWrapper}>
+      <Text style={styles.logoText}>
+        <Text style={styles.logoMis}>Mis</Text>
+        <Text style={styles.logoMedicamentos}>Medicamentos</Text>
+      </Text>
+
+      <View style={styles.badgeContainer}>
+        <Animated.View
+          style={[
+            styles.badgePulse,
+            {
+              transform: [{ scale: pulseScale }],
+              opacity: pulseOpacity,
+            },
+          ]}
+        />
+        <View style={styles.badgeCore} />
+      </View>
+    </View>
+  );
+}
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 700,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor ingresa tu correo y contraseña');
+      Alert.alert('Campos vacíos', 'Por favor ingresa tu correo y contraseña');
       return;
     }
     try {
@@ -41,39 +124,92 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mis Medicamentos</Text>
-      <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Correo electrónico"
-        placeholderTextColor={COLORS.textMuted}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        placeholderTextColor={COLORS.textMuted}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-      />
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={loading}
+      <Animated.View
+        style={[
+          styles.inner,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        <Text style={styles.buttonText}>
-          {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+        <View style={styles.logoSection}>
+          <LogoBadgePulse />
+          <Text style={styles.tagline}>Tu recordatorio de salud personal</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Iniciar sesión</Text>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Correo electrónico</Text>
+            <TextInput
+              style={[
+                styles.input,
+                focusedField === 'email' && styles.inputFocused,
+              ]}
+              placeholder="tu@correo.com"
+              placeholderTextColor={COLORS.textMuted}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              onFocus={() => setFocusedField('email')}
+              onBlur={() => setFocusedField(null)}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Contraseña</Text>
+            <TextInput
+              style={[
+                styles.input,
+                focusedField === 'password' && styles.inputFocused,
+              ]}
+              placeholder="••••••••"
+              placeholderTextColor={COLORS.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <Text style={styles.buttonText}>Iniciando sesión...</Text>
+            ) : (
+              <Text style={styles.buttonText}>Entrar</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>¿no tienes cuenta?</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => navigation.navigate('Register')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.registerButtonText}>Crear cuenta gratis</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>
+          Al continuar aceptas los{' '}
+          <Text style={styles.footerLink}>términos de uso</Text>
         </Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.registerText}>¿No tienes cuenta? Regístrate</Text>
-      </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -81,48 +217,164 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.bg,
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: COLORS.bg
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-    color: COLORS.accent
+  inner: {
+    paddingHorizontal: 24,
   },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
+
+  logoSection: {
+    alignItems: 'center',
     marginBottom: 40,
-    color: COLORS.textMuted
+  },
+  logoWrapper: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingRight: 24,
+  },
+  logoText: {
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  logoMis: {
+    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  logoMedicamentos: {
+    color: '#3A7BFF',
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -4,
+    right: 0,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgePulse: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.danger,
+  },
+  badgeCore: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.danger,
+  },
+  tagline: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+
+  card: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 24,
+    letterSpacing: -0.3,
+  },
+
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSub,
+    marginBottom: 8,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   input: {
-    borderWidth: 1,
-    borderColor: COLORS.surface,
+    backgroundColor: COLORS.secondary,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
     borderRadius: 12,
     padding: 14,
-    marginBottom: 16,
     fontSize: 16,
-    backgroundColor: COLORS.secondary,
-    color: COLORS.text
+    color: COLORS.text,
   },
+  inputFocused: {
+    borderColor: COLORS.accent,
+    backgroundColor: '#1a1c2a',
+  },
+
   button: {
     backgroundColor: COLORS.accent,
-    padding: 16,
     borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
-    color: COLORS.bg,
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold'
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  registerText: {
-    textAlign: 'center',
+
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+
+  registerButton: {
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  registerButtonText: {
     color: COLORS.accent,
-    fontSize: 14
-  }
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  footer: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 24,
+  },
+  footerLink: {
+    color: COLORS.accent,
+  },
 });

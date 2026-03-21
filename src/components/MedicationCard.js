@@ -1,67 +1,66 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { deleteMedication } from '../services/medicationService';
-import { COLORS } from '../utils/theme';
+import { COLORS, DAYS } from '../utils/theme';
 import { hasTimePassed } from '../utils/timeUtils';
 import DayBadges from './DayBadges';
 
-// React.memo evita re-renders cuando las props no cambian
-function MedicationCard({ item, navigation, today }) {
-  const isTakenAtTime = useCallback(
-    (time) => {
-      const key = `${today}_${time}`;
-      return item.takenTimes ? item.takenTimes.includes(key) : false;
-    },
-    [today, item.takenTimes]
-  );
+export default function MedicationCard({ item, navigation }) {
+  const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
 
-  // Función combinada: un solo cálculo por time en vez de dos
-  const getTimeBadgeProps = useCallback(
-    (time) => {
-      const taken = isTakenAtTime(time);
-      const passed = !taken && hasTimePassed(time);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setToday(new Date().toISOString().split('T')[0]);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-      if (taken) {
-        return {
-          containerStyle: styles.timeBadgeTaken,
-          textStyle: styles.timeBadgeTextTaken,
-          label: `✓ ${time}`,
-        };
-      }
-      if (passed) {
-        return {
-          containerStyle: styles.timeBadgePending,
-          textStyle: styles.timeBadgeTextPending,
-          label: time,
-        };
-      }
-      return {
-        containerStyle: styles.timeBadgeUpcoming,
-        textStyle: styles.timeBadgeTextUpcoming,
-        label: time,
-      };
-    },
-    [isTakenAtTime]
-  );
+  const isTakenAtTime = (time) => {
+    const key = `${today}_${time}`;
+    return item.takenTimes && item.takenTimes.includes(key);
+  };
 
-  // arrayUnion/arrayRemove: operación atómica en Firestore,
-  // evita condiciones de carrera si se toca dos badges rápido
-  const handleToggleTime = useCallback(
-    async (time) => {
-      const key = `${today}_${time}`;
-      const alreadyTaken = isTakenAtTime(time);
+  const getTimeBadgeStyle = (time) => {
+    const taken = isTakenAtTime(time);
+    const passed = hasTimePassed(time);
+    if (taken)  return styles.timeBadgeTaken;
+    if (passed) return styles.timeBadgePending;
+    return styles.timeBadgeUpcoming;
+  };
 
-      await updateDoc(doc(db, 'medications', item.id), {
-        takenTimes: alreadyTaken ? arrayRemove(key) : arrayUnion(key),
-      });
-    },
-    [today, item.id, isTakenAtTime]
-  );
+  const getTimeTextStyle = (time) => {
+    const taken = isTakenAtTime(time);
+    const passed = hasTimePassed(time);
+    if (taken)  return styles.timeBadgeTextTaken;
+    if (passed) return styles.timeBadgeTextPending;
+    return styles.timeBadgeTextUpcoming;
+  };
 
-  const handleDelete = useCallback(() => {
+  const handleToggleTime = async (time) => {
+    const key = `${today}_${time}`;
+    const currentTakenTimes = item.takenTimes || [];
+    let updatedTakenTimes;
+
+    if (currentTakenTimes.includes(key)) {
+      updatedTakenTimes = currentTakenTimes.filter(t => t !== key);
+    } else {
+      updatedTakenTimes = [...currentTakenTimes, key];
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    updatedTakenTimes = updatedTakenTimes.filter(t => {
+      const datePart = t.split('_')[0];
+      return new Date(datePart) >= thirtyDaysAgo;
+    });
+
+    await updateDoc(doc(db, 'medications', item.id), { takenTimes: updatedTakenTimes });
+  };
+
+  const handleDelete = () => {
     Alert.alert(
       'Eliminar medicamento',
       `¿Qué deseas hacer con ${item.name}?`,
@@ -76,7 +75,7 @@ function MedicationCard({ item, navigation, today }) {
             } catch {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
-          },
+          }
         },
         {
           text: 'Guardar en historial',
@@ -87,21 +86,13 @@ function MedicationCard({ item, navigation, today }) {
             } catch {
               Alert.alert('Error', 'No se pudo eliminar el medicamento');
             }
-          },
-        },
+          }
+        }
       ]
     );
-  }, [item]);
+  };
 
-  const handleEdit = useCallback(() => {
-    navigation.navigate('EditMedication', { medication: item });
-  }, [navigation, item]);
-
-  // Calculado una sola vez por render, no en cada badge
-  const allTakenToday = useMemo(
-    () => item.times && item.times.length > 0 && item.times.every(isTakenAtTime),
-    [item.times, isTakenAtTime]
-  );
+  const allTakenToday = item.times && item.times.every(time => isTakenAtTime(time));
 
   return (
     <View style={[styles.card, allTakenToday && styles.cardTaken]}>
@@ -112,7 +103,10 @@ function MedicationCard({ item, navigation, today }) {
             <Text style={styles.completedBadgeText}>✓ Completo</Text>
           </View>
         )}
-        <TouchableOpacity style={styles.editIcon} onPress={handleEdit}>
+        <TouchableOpacity
+          style={styles.editIcon}
+          onPress={() => navigation.navigate('EditMedication', { medication: item })}
+        >
           <Svg width="18" height="18" viewBox="0 0 24 24">
             <Path
               d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
@@ -127,20 +121,21 @@ function MedicationCard({ item, navigation, today }) {
 
       <Text style={styles.timesLabel}>Toca la hora cuando lo tomes:</Text>
       <View style={styles.timesList}>
-        {item.times &&
-          item.times.map((time, index) => {
-            const { containerStyle, textStyle, label } = getTimeBadgeProps(time);
-            return (
-              // Key estable: combina valor + índice para evitar colisiones con horarios duplicados
-              <TouchableOpacity
-                key={`${time}-${index}`}
-                style={containerStyle}
-                onPress={() => handleToggleTime(time)}
-              >
-                <Text style={textStyle}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        {item.times && item.times.map((time, index) => {
+          const taken = isTakenAtTime(time);
+          return (
+            <TouchableOpacity
+              key={index}
+              style={getTimeBadgeStyle(time)}
+              onPress={() => handleToggleTime(time)}
+              activeOpacity={0.7}
+            >
+              <Text style={getTimeTextStyle(time)}>
+                {taken ? `✓ ${time}` : time}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <Text style={styles.timesLabel}>Días:</Text>
@@ -149,21 +144,17 @@ function MedicationCard({ item, navigation, today }) {
   );
 }
 
-export default React.memo(MedicationCard);
-
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    borderColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.bgCard,
   },
   cardTaken: {
-    borderColor: COLORS.success,
-    backgroundColor: '#1a2e1a',
+    backgroundColor: 'rgba(50,215,75,0.07)',
   },
+
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,10 +162,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: COLORS.text,
     flex: 1,
+    letterSpacing: -0.3,
   },
   completedBadge: {
     backgroundColor: COLORS.success,
@@ -184,8 +176,8 @@ const styles = StyleSheet.create({
   },
   completedBadgeText: {
     color: COLORS.bg,
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '700',
   },
   editIcon: {
     width: 36,
@@ -195,60 +187,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   cardText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textMuted,
     marginBottom: 2,
   },
   timesLabel: {
-    fontSize: 13,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '600',
     color: COLORS.textMuted,
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 12,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   timesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
+
+  // Sin bordes — solo fondo y texto
   timeBadgeUpcoming: {
-    borderWidth: 1.5,
-    borderColor: COLORS.surface,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: COLORS.surface,
   },
   timeBadgePending: {
-    borderWidth: 2,
-    borderColor: COLORS.danger,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#2d1a1a',
+    backgroundColor: 'rgba(255,77,77,0.12)',
   },
   timeBadgeTaken: {
-    borderWidth: 1.5,
-    borderColor: COLORS.success,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#1a2e1a',
+    backgroundColor: 'rgba(50,215,75,0.12)',
   },
+
   timeBadgeTextUpcoming: {
-    color: COLORS.text,
+    color: COLORS.textSub,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   timeBadgeTextPending: {
     color: COLORS.danger,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   timeBadgeTextTaken: {
     color: COLORS.success,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });
