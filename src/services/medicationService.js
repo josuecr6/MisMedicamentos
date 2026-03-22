@@ -1,14 +1,9 @@
 import { doc, deleteDoc, addDoc, collection } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { cancelNotification } from '../utils/notifications';
+import { cancelNotifications } from '../utils/notifications';
 
 export const deleteMedication = async (medication, saveToHistory = false) => {
-  // Cancelar todas las notificaciones programadas del medicamento
-  if (medication.notificationIds && medication.notificationIds.length > 0) {
-    for (const id of medication.notificationIds) {
-      await cancelNotification(id);
-    }
-  }
+  await cancelNotifications(medication.notificationIds);
 
   if (saveToHistory) {
     await addDoc(collection(db, 'medicationHistory'), {

@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasSharedAccess(ownerId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/sharedAccess/$(ownerId + '_' + request.auth.uid));
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update, delete: if isOwner(userId);
+    }
+
+    match /sharedAccess/{shareId} {
+      allow read: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid || resource.data.guestId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.guestId is string
+        && request.resource.data.guestId != request.auth.uid
+        && shareId == request.auth.uid + '_' + request.resource.data.guestId;
+
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if false;
+    }
+
+    match /medications/{medicationId} {
+      allow read: if isOwner(resource.data.userId) || hasSharedAccess(resource.data.userId);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    match /medicationHistory/{historyId} {
+      allow read, create, update, delete: if isOwner(resource.data.userId)
+        || (request.resource != null && request.resource.data.userId == request.auth.uid);
+    }
+  }
+}

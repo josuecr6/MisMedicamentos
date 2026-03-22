@@ -11,20 +11,7 @@ import {
 } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
-
-const COLORS = {
-  bg: '#0f1117',
-  bgCard: '#16181f',
-  secondary: '#1e2028',
-  surface: '#2a2c36',
-  accent: '#3A7BFF',
-  accentWarm: '#ff9f0a',
-  text: '#ffffff',
-  textMuted: '#6b7280',
-  textSub: '#9ca3af',
-  danger: '#FF4D4D',
-  border: '#2a2c36',
-};
+import { COLORS } from '../utils/theme';
 
 function LogoBadgePulse() {
   const pulseAnim = useRef(new Animated.Value(0)).current;

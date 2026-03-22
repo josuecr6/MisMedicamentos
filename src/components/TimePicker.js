@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,16 @@ import {
 import { COLORS } from '../utils/theme';
 
 const ITEM_HEIGHT = 54;
-const VISIBLE     = 5;
-const REPEAT      = 500;
+const VISIBLE = 5;
+const REPEAT = 120;
 
-const HOURS_BASE = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const HOURS_BASE = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
 
 function buildList(base) {
   const arr = [];
-  for (let i = 0; i < REPEAT; i++) {
-    for (let j = 0; j < base.length; j++) {
-      arr.push(`${i}-${j}`);
+  for (let repeatIndex = 0; repeatIndex < REPEAT; repeatIndex += 1) {
+    for (let valueIndex = 0; valueIndex < base.length; valueIndex += 1) {
+      arr.push(`${repeatIndex}-${valueIndex}`);
     }
   }
   return arr;
@@ -28,21 +28,19 @@ function buildList(base) {
 const HOURS_KEYS = buildList(HOURS_BASE);
 
 function getInitialIndex(value) {
-  const idx     = HOURS_BASE.indexOf(value);
+  const idx = HOURS_BASE.indexOf(value);
   const safeIdx = idx >= 0 ? idx : 0;
   return Math.floor(REPEAT / 2) * HOURS_BASE.length + safeIdx;
 }
 
-// Extrae solo la hora (ej: "08:00 AM" → "08", "03 PM" → "03")
 function parseHour(val) {
   if (!val) return { hour: '08', period: 'AM' };
-  const parts  = val.split(' ');
+  const parts = val.split(' ');
   const period = parts[1] || 'AM';
-  const hour   = parts[0].split(':')[0];
+  const hour = parts[0].split(':')[0];
   return { hour, period };
 }
 
-// Devuelve el formato completo con minutos en :00
 export function buildTimeString(hour, period) {
   return `${hour}:00 ${period}`;
 }
@@ -50,29 +48,51 @@ export function buildTimeString(hour, period) {
 function Drum({ selectedValue, onSelect }) {
   const ref = useRef(null);
 
-  const onScrollEnd = useCallback((e) => {
-    const y   = e.nativeEvent.contentOffset.y;
-    const idx = Math.round(y / ITEM_HEIGHT);
-    const mod = ((idx % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
-    onSelect(HOURS_BASE[mod]);
-  }, [onSelect]);
+  useEffect(() => {
+    const targetIndex = getInitialIndex(selectedValue);
+    const frame = requestAnimationFrame(() => {
+      ref.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.5,
+      });
+    });
 
-  const getItemLayout = useCallback((_, index) => ({
-    length: ITEM_HEIGHT,
-    offset: ITEM_HEIGHT * index,
-    index,
-  }), []);
-
-  const renderItem = useCallback(({ index }) => {
-    const mod        = ((index % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
-    const val        = HOURS_BASE[mod];
-    const isSelected = val === selectedValue;
-    return (
-      <View style={s.item}>
-        <Text style={[s.text, isSelected && s.textSelected]}>{val}</Text>
-      </View>
-    );
+    return () => cancelAnimationFrame(frame);
   }, [selectedValue]);
+
+  const onScrollEnd = useCallback(
+    (event) => {
+      const y = event.nativeEvent.contentOffset.y;
+      const idx = Math.round(y / ITEM_HEIGHT);
+      const mod = ((idx % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
+      onSelect(HOURS_BASE[mod]);
+    },
+    [onSelect]
+  );
+
+  const getItemLayout = useCallback(
+    (_, index) => ({
+      length: ITEM_HEIGHT,
+      offset: ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
+  const renderItem = useCallback(
+    ({ index }) => {
+      const mod = ((index % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
+      const value = HOURS_BASE[mod];
+      const isSelected = value === selectedValue;
+      return (
+        <View style={s.item}>
+          <Text style={[s.text, isSelected && s.textSelected]}>{value}</Text>
+        </View>
+      );
+    },
+    [selectedValue]
+  );
 
   return (
     <View style={s.wrap}>
@@ -83,7 +103,7 @@ function Drum({ selectedValue, onSelect }) {
         renderItem={renderItem}
         keyExtractor={(item) => item}
         getItemLayout={getItemLayout}
-        initialScrollIndex={getInitialIndex(selectedValue)}
+        onScrollToIndexFailed={() => {}}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
@@ -132,21 +152,20 @@ const s = StyleSheet.create({
   },
 });
 
-// ─── Componente exportado ──────────────────────────────────────────────────────
-
 export default function TimePicker({ value, onChange, visible, onClose }) {
   const parsed = parseHour(value);
-  const [selHour,   setSelHour]   = useState(parsed.hour);
+  const [selHour, setSelHour] = useState(parsed.hour);
   const [selPeriod, setSelPeriod] = useState(parsed.period);
 
-  // Sync cuando se abre con un value diferente
-  const prevVisible = useRef(false);
-  if (visible && !prevVisible.current) {
-    const p = parseHour(value);
-    if (p.hour !== selHour)     setSelHour(p.hour);
-    if (p.period !== selPeriod) setSelPeriod(p.period);
-  }
-  prevVisible.current = visible;
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    const next = parseHour(value);
+    setSelHour(next.hour);
+    setSelPeriod(next.period);
+  }, [value, visible]);
 
   const handleConfirm = () => {
     onChange(buildTimeString(selHour, selPeriod));
@@ -161,13 +180,8 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
           <Text style={styles.title}>Seleccionar hora</Text>
 
           <View style={styles.pickerRow}>
-            {/* Drum de horas */}
             <Drum selectedValue={selHour} onSelect={setSelHour} />
-
-            {/* :00 fijo */}
             <Text style={styles.fixedMinutes}>:00</Text>
-
-            {/* AM / PM */}
             <View style={styles.ampmCol}>
               <TouchableOpacity
                 style={[styles.ampmBtn, selPeriod === 'AM' && styles.ampmActive]}
@@ -205,7 +219,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.bgCard ?? '#16181f',
+    backgroundColor: COLORS.bgCard,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -259,39 +273,37 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
   },
   ampmText: {
-    fontSize: 14,
-    fontWeight: '700',
     color: COLORS.textMuted,
+    fontWeight: '700',
   },
   ampmTextActive: {
     color: '#ffffff',
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   btnCancel: {
     flex: 1,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 12,
     paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.surface,
     alignItems: 'center',
   },
   btnCancelText: {
-    fontSize: 15,
+    color: COLORS.text,
     fontWeight: '600',
-    color: COLORS.textMuted,
   },
   btnConfirm: {
-    flex: 2,
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
+    flex: 1,
     paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
   },
   btnConfirmText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: '#ffffff',
+    fontWeight: '700',
   },
 });

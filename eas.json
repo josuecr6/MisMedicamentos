@@ -6,12 +6,14 @@
     "preview": {
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "production"
     }
   }
 }

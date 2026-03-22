@@ -11,6 +11,22 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const missingFirebaseKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+export const firebaseConfigError = missingFirebaseKeys.length > 0
+  ? new Error(`Faltan variables de entorno de Firebase: ${missingFirebaseKeys.join(', ')}`)
+  : null;
+
+let app = null;
+export let auth = null;
+export let db = null;
+
+if (!firebaseConfigError) {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+}
+
+export { app };

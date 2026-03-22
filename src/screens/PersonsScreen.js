@@ -20,9 +20,39 @@ import {
   setDoc,
   limit,
 } from 'firebase/firestore';
+
 import { db, auth } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
+
+async function findUserByEmail(trimmedEmail) {
+  const usersCollection = collection(db, 'users');
+  const normalizedQuery = query(
+    usersCollection,
+    where('emailNormalized', '==', trimmedEmail),
+    limit(1)
+  );
+  const legacyEmailQuery = query(
+    usersCollection,
+    where('email', '==', trimmedEmail),
+    limit(1)
+  );
+
+  const [normalizedSnapshot, legacySnapshot] = await Promise.all([
+    getDocs(normalizedQuery),
+    getDocs(legacyEmailQuery),
+  ]);
+
+  if (!normalizedSnapshot.empty) {
+    return normalizedSnapshot.docs[0].data();
+  }
+
+  if (!legacySnapshot.empty) {
+    return legacySnapshot.docs[0].data();
+  }
+
+  return null;
+}
 
 export default function PersonsScreen() {
   const [persons, setPersons] = useState([]);
@@ -36,42 +66,48 @@ export default function PersonsScreen() {
       where('ownerId', '==', auth.currentUser.uid),
       limit(50)
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setPersons(list);
-      setLoading(false);
-    });
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+        setPersons(list);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+
     return unsubscribe;
   }, []);
 
   const handleAddPerson = useCallback(async () => {
     const trimmedEmail = email.toLowerCase().trim();
+
     if (!trimmedEmail) {
       Alert.alert('Error', 'Por favor ingresa un correo');
       return;
     }
-    if (trimmedEmail === auth.currentUser.email) {
+
+    if (trimmedEmail === auth.currentUser.email?.toLowerCase()) {
       Alert.alert('Error', 'No puedes agregarte a ti mismo');
       return;
     }
+
     try {
       setSearching(true);
-      const q = query(
-        collection(db, 'users'),
-        where('email', '==', trimmedEmail),
-        limit(1)
-      );
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) {
+      const userFound = await findUserByEmail(trimmedEmail);
+
+      if (!userFound) {
         Alert.alert('Error', 'No existe ningún usuario con ese correo');
         return;
       }
-      const userFound = snapshot.docs[0].data();
-      const alreadyAdded = persons.find((p) => p.guestId === userFound.uid);
+
+      const alreadyAdded = persons.find((person) => person.guestId === userFound.uid);
       if (alreadyAdded) {
         Alert.alert('Error', 'Ya tienes acceso compartido con ese usuario');
         return;
       }
+
       await setDoc(
         doc(db, 'sharedAccess', `${auth.currentUser.uid}_${userFound.uid}`),
         {
@@ -83,10 +119,12 @@ export default function PersonsScreen() {
           createdAt: new Date(),
         }
       );
+
       setEmail('');
       Alert.alert('Éxito', `${userFound.name} ahora puede ver tus medicamentos`);
-    } catch {
-      Alert.alert('Error', 'No se pudo agregar la persona');
+    } catch (error) {
+      const errorMessage = error?.message || 'No se pudo agregar la persona';
+      Alert.alert('Error', errorMessage);
     } finally {
       setSearching(false);
     }

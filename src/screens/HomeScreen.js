@@ -7,25 +7,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
+
 import { db, auth } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
 import MedicationCard from '../components/MedicationCard';
+import useTodayKey from '../hooks/useTodayKey';
 
 export default function HomeScreen({ navigation }) {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // 'today' se calcula aquí y se pasa como prop a cada MedicationCard.
-  // Así el setInterval vive en un solo lugar en vez de N timers simultáneos.
-  const [today, setToday] = useState(new Date().toISOString().split('T')[0]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setToday(new Date().toISOString().split('T')[0]);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const today = useTodayKey();
 
   useEffect(() => {
     const q = query(
@@ -33,24 +25,29 @@ export default function HomeScreen({ navigation }) {
       where('userId', '==', auth.currentUser.uid),
       limit(50)
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        // Ordenar en cliente: máximo 50 docs, costo despreciable,
-        // evita necesitar índice compuesto en Firestore
-        .sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() ?? new Date(0);
-          const dateB = b.createdAt?.toDate?.() ?? new Date(0);
-          return dateB - dateA;
-        });
-      setMedications(list);
-      setLoading(false);
-    });
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs
+          .map((document) => ({ id: document.id, ...document.data() }))
+          .sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() ?? new Date(0);
+            const dateB = b.createdAt?.toDate?.() ?? new Date(0);
+            return dateB - dateA;
+          });
+
+        setMedications(list);
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      }
+    );
+
     return unsubscribe;
   }, []);
 
-  // useCallback evita recrear la función en cada render de HomeScreen,
-  // lo que a su vez evita que FlatList re-renderice todos los items.
   const renderItem = useCallback(
     ({ item }) => <MedicationCard item={item} navigation={navigation} today={today} />,
     [navigation, today]
@@ -77,7 +74,6 @@ export default function HomeScreen({ navigation }) {
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
-          // Mejoras de rendimiento nativas de FlatList
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={5}
