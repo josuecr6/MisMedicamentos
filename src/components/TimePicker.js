@@ -9,72 +9,105 @@ import {
 } from 'react-native';
 import { COLORS } from '../utils/theme';
 
-const ITEM_HEIGHT = 54;
-const VISIBLE = 5;
-const REPEAT = 120;
+const ITEM_HEIGHT = 56;
+const VISIBLE_ITEMS = 5;
+const REPEAT = 100;
+const SPACER_HEIGHT = ITEM_HEIGHT * 2;
 
-const HOURS_BASE = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
+const HOURS_BASE = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const MINUTES_BASE = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
 function buildList(base) {
   const arr = [];
-  for (let repeatIndex = 0; repeatIndex < REPEAT; repeatIndex += 1) {
-    for (let valueIndex = 0; valueIndex < base.length; valueIndex += 1) {
-      arr.push(`${repeatIndex}-${valueIndex}`);
+  for (let r = 0; r < REPEAT; r++) {
+    for (let i = 0; i < base.length; i++) {
+      arr.push(`${r}-${i}`);
     }
   }
   return arr;
 }
 
 const HOURS_KEYS = buildList(HOURS_BASE);
+const MINUTES_KEYS = buildList(MINUTES_BASE);
 
-function getInitialIndex(value) {
-  const idx = HOURS_BASE.indexOf(value);
+function getCenterIndex(base, value) {
+  const idx = base.indexOf(value);
   const safeIdx = idx >= 0 ? idx : 0;
-  return Math.floor(REPEAT / 2) * HOURS_BASE.length + safeIdx;
+  return Math.floor(REPEAT / 2) * base.length + safeIdx;
 }
 
-function parseHour(val) {
-  if (!val) return { hour: '08', period: 'AM' };
+// Calcula el offset exacto para que el item quede centrado en la ventana
+function getOffsetForIndex(index) {
+  return SPACER_HEIGHT + index * ITEM_HEIGHT - ITEM_HEIGHT * 2;
+}
+
+function parseTime(val) {
+  if (!val) return { hour: '08', minute: '00', period: 'AM' };
   const parts = val.split(' ');
   const period = parts[1] || 'AM';
-  const hour = parts[0].split(':')[0];
-  return { hour, period };
+  const timeParts = (parts[0] || '08:00').split(':');
+  const hour = timeParts[0] || '08';
+  const rawMinute = timeParts[1] || '00';
+  const minuteNum = Math.round(parseInt(rawMinute, 10) / 5) * 5;
+  const minute = String(minuteNum >= 60 ? 0 : minuteNum).padStart(2, '0');
+  return { hour, minute, period };
 }
 
-export function buildTimeString(hour, period) {
-  return `${hour}:00 ${period}`;
+export function buildTimeString(hour, minute, period) {
+  return `${hour}:${minute} ${period}`;
 }
 
-function Drum({ selectedValue, onSelect }) {
+const Spacer = () => <View style={{ height: SPACER_HEIGHT }} />;
+
+function Drum({ base, keys, selectedValue, onSelect }) {
   const ref = useRef(null);
+  const isScrolling = useRef(false);
 
   useEffect(() => {
-    const targetIndex = getInitialIndex(selectedValue);
-    const frame = requestAnimationFrame(() => {
-      ref.current?.scrollToIndex({
-        index: targetIndex,
-        animated: false,
-        viewPosition: 0.5,
-      });
-    });
+    const index = getCenterIndex(base, selectedValue);
+    const offset = getOffsetForIndex(index);
+    const timer = setTimeout(() => {
+      ref.current?.scrollToOffset({ offset, animated: false });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, []);
 
-    return () => cancelAnimationFrame(frame);
-  }, [selectedValue]);
-
-  const onScrollEnd = useCallback(
-    (event) => {
-      const y = event.nativeEvent.contentOffset.y;
-      const idx = Math.round(y / ITEM_HEIGHT);
-      const mod = ((idx % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
-      onSelect(HOURS_BASE[mod]);
+  const snapToNearest = useCallback(
+    (y) => {
+      const adjustedY = y - SPACER_HEIGHT;
+      const idx = Math.round(adjustedY / ITEM_HEIGHT);
+      const clampedIdx = Math.max(0, idx);
+      const mod = ((clampedIdx % base.length) + base.length) % base.length;
+      onSelect(base[mod]);
     },
-    [onSelect]
+    [base, onSelect]
   );
+
+  const onMomentumScrollEnd = useCallback(
+    (e) => {
+      isScrolling.current = false;
+      snapToNearest(e.nativeEvent.contentOffset.y);
+    },
+    [snapToNearest]
+  );
+
+  const onScrollEndDrag = useCallback(
+    (e) => {
+      if (!isScrolling.current) {
+        snapToNearest(e.nativeEvent.contentOffset.y);
+      }
+    },
+    [snapToNearest]
+  );
+
+  const onMomentumScrollBegin = useCallback(() => {
+    isScrolling.current = true;
+  }, []);
 
   const getItemLayout = useCallback(
     (_, index) => ({
       length: ITEM_HEIGHT,
-      offset: ITEM_HEIGHT * index,
+      offset: SPACER_HEIGHT + ITEM_HEIGHT * index,
       index,
     }),
     []
@@ -82,8 +115,8 @@ function Drum({ selectedValue, onSelect }) {
 
   const renderItem = useCallback(
     ({ index }) => {
-      const mod = ((index % HOURS_BASE.length) + HOURS_BASE.length) % HOURS_BASE.length;
-      const value = HOURS_BASE[mod];
+      const mod = ((index % base.length) + base.length) % base.length;
+      const value = base[mod];
       const isSelected = value === selectedValue;
       return (
         <View style={s.item}>
@@ -91,15 +124,15 @@ function Drum({ selectedValue, onSelect }) {
         </View>
       );
     },
-    [selectedValue]
+    [base, selectedValue]
   );
 
   return (
-    <View style={s.wrap}>
-      <View style={s.selector} pointerEvents="none" />
+    <View style={s.drumWrapper}>
+      <View style={s.selectorBackground} pointerEvents="none" />
       <FlatList
         ref={ref}
-        data={HOURS_KEYS}
+        data={keys}
         renderItem={renderItem}
         keyExtractor={(item) => item}
         getItemLayout={getItemLayout}
@@ -107,25 +140,28 @@ function Drum({ selectedValue, onSelect }) {
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
-        onMomentumScrollEnd={onScrollEnd}
-        onScrollEndDrag={onScrollEnd}
-        windowSize={5}
+        onMomentumScrollBegin={onMomentumScrollBegin}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        onScrollEndDrag={onScrollEndDrag}
+        windowSize={7}
         maxToRenderPerBatch={20}
-        initialNumToRender={VISIBLE + 4}
+        initialNumToRender={VISIBLE_ITEMS + 4}
         removeClippedSubviews={false}
+        ListHeaderComponent={<Spacer />}
+        ListFooterComponent={<Spacer />}
       />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: {
-    height: ITEM_HEIGHT * VISIBLE,
+  drumWrapper: {
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+    width: 84,
     overflow: 'hidden',
-    width: 100,
     position: 'relative',
   },
-  selector: {
+  selectorBackground: {
     position: 'absolute',
     top: ITEM_HEIGHT * 2,
     left: 0,
@@ -133,7 +169,7 @@ const s = StyleSheet.create({
     height: ITEM_HEIGHT,
     backgroundColor: COLORS.surface,
     borderRadius: 10,
-    zIndex: 1,
+    zIndex: 0,
   },
   item: {
     height: ITEM_HEIGHT,
@@ -141,34 +177,33 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '500',
     color: COLORS.textMuted,
   },
   textSelected: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '700',
     color: COLORS.accent,
   },
 });
 
 export default function TimePicker({ value, onChange, visible, onClose }) {
-  const parsed = parseHour(value);
+  const parsed = parseTime(value);
   const [selHour, setSelHour] = useState(parsed.hour);
+  const [selMinute, setSelMinute] = useState(parsed.minute);
   const [selPeriod, setSelPeriod] = useState(parsed.period);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
-    const next = parseHour(value);
+    if (!visible) return;
+    const next = parseTime(value);
     setSelHour(next.hour);
+    setSelMinute(next.minute);
     setSelPeriod(next.period);
   }, [value, visible]);
 
   const handleConfirm = () => {
-    onChange(buildTimeString(selHour, selPeriod));
+    onChange(buildTimeString(selHour, selMinute, selPeriod));
     onClose();
   };
 
@@ -180,20 +215,38 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
           <Text style={styles.title}>Seleccionar hora</Text>
 
           <View style={styles.pickerRow}>
-            <Drum selectedValue={selHour} onSelect={setSelHour} />
-            <Text style={styles.fixedMinutes}>:00</Text>
+            <Drum
+              base={HOURS_BASE}
+              keys={HOURS_KEYS}
+              selectedValue={selHour}
+              onSelect={setSelHour}
+            />
+
+            <Text style={styles.separator}>:</Text>
+
+            <Drum
+              base={MINUTES_BASE}
+              keys={MINUTES_KEYS}
+              selectedValue={selMinute}
+              onSelect={setSelMinute}
+            />
+
             <View style={styles.ampmCol}>
               <TouchableOpacity
                 style={[styles.ampmBtn, selPeriod === 'AM' && styles.ampmActive]}
                 onPress={() => setSelPeriod('AM')}
               >
-                <Text style={[styles.ampmText, selPeriod === 'AM' && styles.ampmTextActive]}>AM</Text>
+                <Text style={[styles.ampmText, selPeriod === 'AM' && styles.ampmTextActive]}>
+                  AM
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.ampmBtn, selPeriod === 'PM' && styles.ampmActive]}
                 onPress={() => setSelPeriod('PM')}
               >
-                <Text style={[styles.ampmText, selPeriod === 'PM' && styles.ampmTextActive]}>PM</Text>
+                <Text style={[styles.ampmText, selPeriod === 'PM' && styles.ampmTextActive]}>
+                  PM
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -251,21 +304,23 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.secondary,
     borderRadius: 16,
     padding: 16,
-    gap: 16,
+    gap: 8,
     marginVertical: 16,
   },
-  fixedMinutes: {
-    fontSize: 36,
+  separator: {
+    fontSize: 32,
     fontWeight: '700',
     color: COLORS.textMuted,
+    marginBottom: 4,
   },
   ampmCol: {
     alignItems: 'center',
     gap: 8,
+    marginLeft: 8,
   },
   ampmBtn: {
     paddingVertical: 12,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: COLORS.surface,
   },
@@ -275,6 +330,7 @@ const styles = StyleSheet.create({
   ampmText: {
     color: COLORS.textMuted,
     fontWeight: '700',
+    fontSize: 14,
   },
   ampmTextActive: {
     color: '#ffffff',
