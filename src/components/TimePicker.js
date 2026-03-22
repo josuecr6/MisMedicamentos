@@ -49,10 +49,16 @@ function Drum({ selectedValue, onSelect }) {
   const ref = useRef(null);
 
   useEffect(() => {
-    ref.current?.scrollToIndex({
-      index: getInitialIndex(selectedValue),
-      animated: false,
+    const targetIndex = getInitialIndex(selectedValue);
+    const frame = requestAnimationFrame(() => {
+      ref.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.5,
+      });
     });
+
+    return () => cancelAnimationFrame(frame);
   }, [selectedValue]);
 
   const onScrollEnd = useCallback(
@@ -97,7 +103,7 @@ function Drum({ selectedValue, onSelect }) {
         renderItem={renderItem}
         keyExtractor={(item) => item}
         getItemLayout={getItemLayout}
-        initialScrollIndex={getInitialIndex(selectedValue)}
+        onScrollToIndexFailed={() => {}}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
