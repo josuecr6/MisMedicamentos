@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -8,11 +8,11 @@ import { COLORS } from '../utils/theme';
 import { hasTimePassed } from '../utils/timeUtils';
 import { isScheduledForDate } from '../utils/dateUtils';
 import DayBadges from './DayBadges';
-import useCurrentTime from '../hooks/useCurrentTime';
 
-function MedicationCardComponent({ item, navigation, today }) {
-  // Se refresca cada 30 seg — así los badges cambian de color automáticamente
-  const now = useCurrentTime(30000);
+
+// Sin memo — necesitamos que se re-renderice cuando cambia el tiempo
+export default function MedicationCard({ item, navigation, today, now }) {
+
 
   const scheduledToday = useMemo(
     () => isScheduledForDate(item.selectedDays),
@@ -24,13 +24,11 @@ function MedicationCardComponent({ item, navigation, today }) {
     return item.takenTimes?.includes(key) ?? false;
   };
 
-  // Pasamos `now` para que el cálculo use la hora actual actualizada
   const isPassedNow = (time) => hasTimePassed(time, now);
 
   const getTimeBadgeStyle = (time) => {
     const taken = isTakenAtTime(time);
     const passed = isPassedNow(time);
-
     if (!scheduledToday) return styles.timeBadgeInactive;
     if (taken) return styles.timeBadgeTaken;
     if (passed) return styles.timeBadgePending;
@@ -40,7 +38,6 @@ function MedicationCardComponent({ item, navigation, today }) {
   const getTimeTextStyle = (time) => {
     const taken = isTakenAtTime(time);
     const passed = isPassedNow(time);
-
     if (!scheduledToday) return styles.timeBadgeTextInactive;
     if (taken) return styles.timeBadgeTextTaken;
     if (passed) return styles.timeBadgeTextPending;
@@ -61,7 +58,6 @@ function MedicationCardComponent({ item, navigation, today }) {
       updatedTakenTimes = [...currentTakenTimes, key];
     }
 
-    // Limpiar entradas de más de 30 días
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     updatedTakenTimes = updatedTakenTimes.filter((entry) => {
@@ -242,6 +238,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-const MedicationCard = memo(MedicationCardComponent);
-export default MedicationCard;

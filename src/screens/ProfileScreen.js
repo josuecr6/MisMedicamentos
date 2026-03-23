@@ -91,21 +91,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro que deseas cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: async () => await signOut(auth)
-        }
-      ]
-    );
-  };
-
   if (loading) {
     return (
       <View style={[commonStyles.container, styles.loader]}>
@@ -194,10 +179,6 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={commonStyles.deleteButton} onPress={handleLogout}>
-        <Text style={commonStyles.deleteButtonText}>Cerrar sesión</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }

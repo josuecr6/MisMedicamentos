@@ -12,7 +12,9 @@ import { COLORS } from '../utils/theme';
 const ITEM_HEIGHT = 56;
 const VISIBLE_ITEMS = 5;
 const REPEAT = 100;
-const SPACER_HEIGHT = ITEM_HEIGHT * 2;
+// Dos ítems de padding arriba y abajo para que el primero/último pueda centrarse
+const PADDING_ITEMS = 2;
+const SPACER_HEIGHT = ITEM_HEIGHT * PADDING_ITEMS;
 
 const HOURS_BASE = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 const MINUTES_BASE = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
@@ -36,9 +38,14 @@ function getCenterIndex(base, value) {
   return Math.floor(REPEAT / 2) * base.length + safeIdx;
 }
 
-// Calcula el offset exacto para que el item quede centrado en la ventana
-function getOffsetForIndex(index) {
-  return SPACER_HEIGHT + index * ITEM_HEIGHT - ITEM_HEIGHT * 2;
+// Offset exacto: el ítem en `index` queda en el centro de la ventana visible.
+// La ventana tiene VISIBLE_ITEMS ítems; el centro es PADDING_ITEMS desde arriba.
+// Con el espaciador, el ítem 0 empieza en y = SPACER_HEIGHT.
+// Para que el ítem `index` quede centrado: offset = SPACER_HEIGHT + index * ITEM_HEIGHT - PADDING_ITEMS * ITEM_HEIGHT
+// Simplificado: offset = (index - PADDING_ITEMS) * ITEM_HEIGHT + SPACER_HEIGHT
+// Como SPACER_HEIGHT = PADDING_ITEMS * ITEM_HEIGHT → offset = index * ITEM_HEIGHT
+function getScrollOffset(index) {
+  return index * ITEM_HEIGHT;
 }
 
 function parseTime(val) {
@@ -65,17 +72,16 @@ function Drum({ base, keys, selectedValue, onSelect }) {
 
   useEffect(() => {
     const index = getCenterIndex(base, selectedValue);
-    const offset = getOffsetForIndex(index);
+    const offset = getScrollOffset(index);
     const timer = setTimeout(() => {
       ref.current?.scrollToOffset({ offset, animated: false });
-    }, 80);
+    }, 100);
     return () => clearTimeout(timer);
   }, []);
 
   const snapToNearest = useCallback(
     (y) => {
-      const adjustedY = y - SPACER_HEIGHT;
-      const idx = Math.round(adjustedY / ITEM_HEIGHT);
+      const idx = Math.round(y / ITEM_HEIGHT);
       const clampedIdx = Math.max(0, idx);
       const mod = ((clampedIdx % base.length) + base.length) % base.length;
       onSelect(base[mod]);
@@ -104,6 +110,7 @@ function Drum({ base, keys, selectedValue, onSelect }) {
     isScrolling.current = true;
   }, []);
 
+  // getItemLayout debe incluir el SPACER_HEIGHT del header
   const getItemLayout = useCallback(
     (_, index) => ({
       length: ITEM_HEIGHT,
@@ -129,6 +136,7 @@ function Drum({ base, keys, selectedValue, onSelect }) {
 
   return (
     <View style={s.drumWrapper}>
+      {/* Recuadro selector siempre detrás de los números */}
       <View style={s.selectorBackground} pointerEvents="none" />
       <FlatList
         ref={ref}
@@ -163,7 +171,7 @@ const s = StyleSheet.create({
   },
   selectorBackground: {
     position: 'absolute',
-    top: ITEM_HEIGHT * 2,
+    top: ITEM_HEIGHT * PADDING_ITEMS,
     left: 0,
     right: 0,
     height: ITEM_HEIGHT,
