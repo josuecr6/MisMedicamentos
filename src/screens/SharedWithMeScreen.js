@@ -40,7 +40,7 @@ export default function SharedWithMeScreen({ navigation }) {
     (item) => {
       navigation.navigate('SharedStatus', {
         ownerId: item.ownerId,
-        ownerName: item.ownerEmail,
+        ownerName: item.ownerName || item.ownerEmail,
       });
     },
     [navigation]
@@ -50,7 +50,7 @@ export default function SharedWithMeScreen({ navigation }) {
     ({ item }) => (
       <TouchableOpacity style={commonStyles.card} onPress={() => handlePress(item)}>
         <View style={styles.cardInfo}>
-          <Text style={styles.cardEmail}>{item.ownerEmail}</Text>
+          <Text style={styles.cardName}>{item.ownerName || item.ownerEmail}</Text>
           <Text style={styles.cardHint}>Toca para ver sus medicamentos</Text>
         </View>
         <Text style={styles.arrow}>→</Text>
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   cardInfo: {
     flex: 1,
   },
-  cardEmail: {
+  cardName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.text,
