@@ -37,6 +37,7 @@ export default function MedicationForm({
 }) {
   const [name, setName] = useState(initialValues.name ?? '');
   const [reason, setReason] = useState(initialValues.reason ?? '');
+  const [dosage, setDosage] = useState(initialValues.dosage ?? '');
   const [doctor, setDoctor] = useState(initialValues.doctor ?? '');
   const [times, setTimes] = useState(sortTimes(initialValues.times ?? []));
   const [selectedDays, setSelectedDays] = useState(initialValues.selectedDays ?? [0, 1, 2, 3, 4, 5, 6]);
@@ -110,6 +111,7 @@ export default function MedicationForm({
     onSubmit({
       name: name.trim(),
       reason: reason.trim(),
+      dosage: dosage.trim(),
       doctor: doctor.trim(),
       times,
       selectedDays,
@@ -146,6 +148,18 @@ export default function MedicationForm({
         placeholderTextColor={COLORS.textMuted}
         value={reason}
         onChangeText={setReason}
+      />
+
+      <Text style={commonStyles.label}>Dosis o comentarios</Text>
+      <TextInput
+        style={[commonStyles.input, styles.multilineInput]}
+        placeholder="Ej: 500mg, tomar con agua, no exceder 3 al día"
+        placeholderTextColor={COLORS.textMuted}
+        value={dosage}
+        onChangeText={setDosage}
+        multiline
+        numberOfLines={3}
+        textAlignVertical="top"
       />
 
       <Text style={commonStyles.label}>Doctor que lo recetó</Text>
@@ -241,6 +255,10 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: {
     opacity: 0.5,
+  },
+  multilineInput: {
+    height: 90,
+    paddingTop: 14,
   },
   chipsContainer: {
     flexDirection: 'row',
