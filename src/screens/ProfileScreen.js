@@ -10,7 +10,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { COLORS } from '../utils/theme';
 import { commonStyles } from '../utils/commonStyles';
@@ -49,7 +49,25 @@ export default function ProfileScreen({ navigation }) {
     }
     try {
       setSavingName(true);
+
+      // Actualiza el nombre en el documento del usuario
       await updateDoc(doc(db, 'users', auth.currentUser.uid), { name });
+
+      // Actualiza ownerName en todos los sharedAccess donde este usuario es el dueño
+      const sharedQuery = query(
+        collection(db, 'sharedAccess'),
+        where('ownerId', '==', auth.currentUser.uid)
+      );
+      const sharedSnapshot = await getDocs(sharedQuery);
+
+      if (!sharedSnapshot.empty) {
+        const batch = writeBatch(db);
+        sharedSnapshot.docs.forEach((sharedDoc) => {
+          batch.update(sharedDoc.ref, { ownerName: name });
+        });
+        await batch.commit();
+      }
+
       Alert.alert('Éxito', 'Nombre actualizado correctamente');
     } catch (error) {
       Alert.alert('Error', 'No se pudo actualizar el nombre');
@@ -89,6 +107,21 @@ export default function ProfileScreen({ navigation }) {
     } finally {
       setSavingPassword(false);
     }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro que deseas cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: async () => await signOut(auth)
+        }
+      ]
+    );
   };
 
   if (loading) {
@@ -179,6 +212,10 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity style={commonStyles.deleteButton} onPress={handleLogout}>
+        <Text style={commonStyles.deleteButtonText}>Cerrar sesión</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
