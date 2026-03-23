@@ -12,7 +12,7 @@ export default function EditMedicationScreen({ route, navigation }) {
   const { medication } = route.params;
   const [loading, setLoading] = useState(false);
 
-  const handleSave = async ({ name, reason, doctor, times, selectedDays }) => {
+  const handleSave = async ({ name, reason, dosage, doctor, times, selectedDays }) => {
     try {
       setLoading(true);
 
@@ -36,6 +36,7 @@ export default function EditMedicationScreen({ route, navigation }) {
       await updateDoc(doc(db, 'medications', medication.id), {
         name,
         reason,
+        dosage,
         doctor,
         times,
         selectedDays,
@@ -91,6 +92,7 @@ export default function EditMedicationScreen({ route, navigation }) {
       initialValues={{
         name: medication.name,
         reason: medication.reason,
+        dosage: medication.dosage ?? '',
         doctor: medication.doctor,
         times: medication.times ?? [],
         selectedDays: medication.selectedDays ?? [0, 1, 2, 3, 4, 5, 6],

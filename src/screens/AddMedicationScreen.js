@@ -10,7 +10,7 @@ import { convertTo24Hour } from '../utils/timeUtils';
 export default function AddMedicationScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
-  const handleSave = async ({ name, reason, doctor, times, selectedDays }) => {
+  const handleSave = async ({ name, reason, dosage, doctor, times, selectedDays }) => {
     try {
       setLoading(true);
 
@@ -32,6 +32,7 @@ export default function AddMedicationScreen({ navigation }) {
       await addDoc(collection(db, 'medications'), {
         name,
         reason,
+        dosage,
         doctor,
         times,
         selectedDays,
@@ -55,6 +56,7 @@ export default function AddMedicationScreen({ navigation }) {
       initialValues={{
         name: '',
         reason: '',
+        dosage: '',
         doctor: '',
         times: [],
         selectedDays: [0, 1, 2, 3, 4, 5, 6],
