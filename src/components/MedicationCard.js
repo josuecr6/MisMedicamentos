@@ -11,7 +11,6 @@ import DayBadges from './DayBadges';
 import useCurrentTime from '../hooks/useCurrentTime';
 
 function MedicationCardComponent({ item, navigation, today }) {
-  // Se refresca cada 30 seg — así los badges cambian de color automáticamente
   const now = useCurrentTime(30000);
 
   const scheduledToday = useMemo(
@@ -24,7 +23,6 @@ function MedicationCardComponent({ item, navigation, today }) {
     return item.takenTimes?.includes(key) ?? false;
   };
 
-  // Pasamos `now` para que el cálculo use la hora actual actualizada
   const isPassedNow = (time) => hasTimePassed(time, now);
 
   const getTimeBadgeStyle = (time) => {
@@ -61,7 +59,6 @@ function MedicationCardComponent({ item, navigation, today }) {
       updatedTakenTimes = [...currentTakenTimes, key];
     }
 
-    // Limpiar entradas de más de 30 días
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     updatedTakenTimes = updatedTakenTimes.filter((entry) => {
@@ -98,6 +95,7 @@ function MedicationCardComponent({ item, navigation, today }) {
 
       <Text style={styles.cardText}>Para: {item.reason}</Text>
       <Text style={styles.cardText}>Doctor: {item.doctor}</Text>
+      <Text style={styles.cardText}>Dosis: {item.dosage}</Text>
 
       <Text style={styles.timesLabel}>
         {scheduledToday

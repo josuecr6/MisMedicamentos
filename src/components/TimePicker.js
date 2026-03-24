@@ -5,163 +5,91 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  FlatList,
+  ScrollView,
 } from 'react-native';
 import { COLORS } from '../utils/theme';
 
-const ITEM_HEIGHT = 56;
+const ITEM_HEIGHT   = 56;
 const VISIBLE_ITEMS = 5;
-const REPEAT = 100;
-const PADDING_ITEMS = 2;
-const SPACER_HEIGHT = ITEM_HEIGHT * PADDING_ITEMS;
+const PADDING_ITEMS = Math.floor(VISIBLE_ITEMS / 2); // 2 items arriba/abajo
 
-const HOURS_BASE = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-const MINUTES_BASE = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-
-function buildList(base) {
-  const arr = [];
-  for (let r = 0; r < REPEAT; r++) {
-    for (let i = 0; i < base.length; i++) {
-      arr.push(`${r}-${i}`);
-    }
-  }
-  return arr;
-}
-
-const HOURS_KEYS = buildList(HOURS_BASE);
-const MINUTES_KEYS = buildList(MINUTES_BASE);
-
-function getCenterIndex(base, value) {
-  const idx = base.indexOf(value);
-  const safeIdx = idx >= 0 ? idx : 0;
-  return Math.floor(REPEAT / 2) * base.length + safeIdx;
-}
-
-function getScrollOffset(index) {
-  return index * ITEM_HEIGHT;
-}
+const HOURS_LIST   = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const MINUTES_LIST = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
 function parseTime(val) {
   if (!val) return { hour: '08', minute: '00', period: 'AM' };
-  const parts = val.split(' ');
-  const period = parts[1] || 'AM';
-  const timeParts = (parts[0] || '08:00').split(':');
-  const hour = timeParts[0] || '08';
-  const rawMinute = timeParts[1] || '00';
-  const minuteNum = Math.round(parseInt(rawMinute, 10) / 5) * 5;
-  const minute = String(minuteNum >= 60 ? 0 : minuteNum).padStart(2, '0');
-  return { hour, minute, period };
+  const [timePart = '08:00', period = 'AM'] = val.split(' ');
+  const [h = '08', m = '00'] = timePart.split(':');
+  const minuteNum = Math.round(parseInt(m, 10) / 5) * 5;
+  const minute    = String(minuteNum >= 60 ? 0 : minuteNum).padStart(2, '0');
+  return { hour: h.padStart(2, '0'), minute, period };
 }
 
 export function buildTimeString(hour, minute, period) {
   return `${hour}:${minute} ${period}`;
 }
 
-const Spacer = () => <View style={{ height: SPACER_HEIGHT }} />;
+// ─── Drum ────────────────────────────────────────────────────────────────────
+// Usa ScrollView simple sobre una lista FINITA.
+// El prop `resetKey` cambia cuando el modal abre, forzando remontaje
+// completo y eliminando cualquier posición residual de sesiones anteriores.
+function Drum({ items, selectedValue, onSelect, resetKey }) {
+  const scrollRef    = useRef(null);
+  const selectedIndex = Math.max(0, items.indexOf(selectedValue));
 
-function Drum({ base, keys, selectedValue, onSelect }) {
-  const ref = useRef(null);
-  const isDragging = useRef(false);
-  const currentIndex = useRef(getCenterIndex(base, selectedValue));
-
-  // Scroll al índice correcto cuando se monta o cambia selectedValue externamente
+  // Scroll al valor correcto cada vez que el modal se abre (resetKey cambia)
   useEffect(() => {
-    const index = getCenterIndex(base, selectedValue);
-    currentIndex.current = index;
-    const offset = getScrollOffset(index);
-    const timer = setTimeout(() => {
-      ref.current?.scrollToOffset({ offset, animated: false });
-    }, 80);
-    return () => clearTimeout(timer);
-  }, []);
+    const offset = selectedIndex * ITEM_HEIGHT;
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: offset, animated: false });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [resetKey, selectedIndex]);
 
-  const snapToIndex = useCallback(
-    (rawOffset) => {
-      // Calcula el índice más cercano al offset actual
-      const index = Math.round(rawOffset / ITEM_HEIGHT);
-      const clampedIndex = Math.max(0, index);
-
-      // Calcula el valor en base al módulo
-      const mod = ((clampedIndex % base.length) + base.length) % base.length;
-      const value = base[mod];
-
-      // Snap al offset exacto para evitar que quede a medio camino
-      const snappedOffset = getScrollOffset(clampedIndex);
-      ref.current?.scrollToOffset({ offset: snappedOffset, animated: true });
-
-      currentIndex.current = clampedIndex;
-      onSelect(value);
+  const snapToNearest = useCallback(
+    (offsetY) => {
+      const index         = Math.max(0, Math.min(Math.round(offsetY / ITEM_HEIGHT), items.length - 1));
+      const snappedOffset = index * ITEM_HEIGHT;
+      scrollRef.current?.scrollTo({ y: snappedOffset, animated: true });
+      onSelect(items[index]);
     },
-    [base, onSelect]
+    [items, onSelect]
   );
 
-  const onScrollBeginDrag = useCallback(() => {
-    isDragging.current = true;
-  }, []);
-
   const onScrollEndDrag = useCallback(
-    (e) => {
-      isDragging.current = false;
-      snapToIndex(e.nativeEvent.contentOffset.y);
-    },
-    [snapToIndex]
+    (e) => snapToNearest(e.nativeEvent.contentOffset.y),
+    [snapToNearest]
   );
 
   const onMomentumScrollEnd = useCallback(
-    (e) => {
-      if (!isDragging.current) {
-        snapToIndex(e.nativeEvent.contentOffset.y);
-      }
-    },
-    [snapToIndex]
-  );
-
-  const getItemLayout = useCallback(
-    (_, index) => ({
-      length: ITEM_HEIGHT,
-      offset: SPACER_HEIGHT + ITEM_HEIGHT * index,
-      index,
-    }),
-    []
-  );
-
-  const renderItem = useCallback(
-    ({ index }) => {
-      const mod = ((index % base.length) + base.length) % base.length;
-      const value = base[mod];
-      const isSelected = value === selectedValue;
-      return (
-        <View style={s.item}>
-          <Text style={[s.text, isSelected && s.textSelected]}>{value}</Text>
-        </View>
-      );
-    },
-    [base, selectedValue]
+    (e) => snapToNearest(e.nativeEvent.contentOffset.y),
+    [snapToNearest]
   );
 
   return (
     <View style={s.drumWrapper}>
-      <View style={s.selectorBackground} pointerEvents="none" />
-      <FlatList
-        ref={ref}
-        data={keys}
-        renderItem={renderItem}
-        keyExtractor={(item) => item}
-        getItemLayout={getItemLayout}
-        onScrollToIndexFailed={() => {}}
+      {/* Highlight del ítem central — encima del scroll para que se vea */}
+      <View style={s.highlight} pointerEvents="none" />
+
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={onScrollBeginDrag}
+        scrollEventThrottle={16}
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
-        windowSize={7}
-        maxToRenderPerBatch={20}
-        initialNumToRender={VISIBLE_ITEMS + 4}
-        removeClippedSubviews={false}
-        ListHeaderComponent={<Spacer />}
-        ListFooterComponent={<Spacer />}
-      />
+        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * PADDING_ITEMS }}
+      >
+        {items.map((item) => {
+          const isSelected = item === selectedValue;
+          return (
+            <View key={item} style={s.item}>
+              <Text style={[s.text, isSelected && s.textSelected]}>{item}</Text>
+            </View>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -173,7 +101,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  selectorBackground: {
+  highlight: {
     position: 'absolute',
     top: ITEM_HEIGHT * PADDING_ITEMS,
     left: 0,
@@ -181,7 +109,7 @@ const s = StyleSheet.create({
     height: ITEM_HEIGHT,
     backgroundColor: COLORS.surface,
     borderRadius: 10,
-    zIndex: 0,
+    zIndex: 1,
   },
   item: {
     height: ITEM_HEIGHT,
@@ -200,19 +128,23 @@ const s = StyleSheet.create({
   },
 });
 
+// ─── TimePicker ──────────────────────────────────────────────────────────────
 export default function TimePicker({ value, onChange, visible, onClose }) {
-  const parsed = parseTime(value);
-  const [selHour, setSelHour] = useState(parsed.hour);
-  const [selMinute, setSelMinute] = useState(parsed.minute);
-  const [selPeriod, setSelPeriod] = useState(parsed.period);
+  const [selHour,   setSelHour]   = useState('08');
+  const [selMinute, setSelMinute] = useState('00');
+  const [selPeriod, setSelPeriod] = useState('AM');
+  const [resetKey,  setResetKey]  = useState(0);
 
+  // Cuando el modal se abre: parsea el valor nuevo y reinicia los drums
   useEffect(() => {
     if (!visible) return;
-    const next = parseTime(value);
-    setSelHour(next.hour);
-    setSelMinute(next.minute);
-    setSelPeriod(next.period);
-  }, [value, visible]);
+    const { hour, minute, period } = parseTime(value);
+    setSelHour(hour);
+    setSelMinute(minute);
+    setSelPeriod(period);
+    // Incrementar resetKey fuerza remontaje de los Drum con el valor correcto
+    setResetKey((k) => k + 1);
+  }, [visible]); // solo reacciona a visible, no a value
 
   const handleConfirm = () => {
     onChange(buildTimeString(selHour, selMinute, selPeriod));
@@ -227,20 +159,23 @@ export default function TimePicker({ value, onChange, visible, onClose }) {
           <Text style={styles.title}>Seleccionar hora</Text>
 
           <View style={styles.pickerRow}>
+            {/* key cambia con resetKey → remonta el Drum completamente */}
             <Drum
-              base={HOURS_BASE}
-              keys={HOURS_KEYS}
+              key={`hour-${resetKey}`}
+              items={HOURS_LIST}
               selectedValue={selHour}
               onSelect={setSelHour}
+              resetKey={resetKey}
             />
 
             <Text style={styles.separator}>:</Text>
 
             <Drum
-              base={MINUTES_BASE}
-              keys={MINUTES_KEYS}
+              key={`min-${resetKey}`}
+              items={MINUTES_LIST}
               selectedValue={selMinute}
               onSelect={setSelMinute}
+              resetKey={resetKey}
             />
 
             <View style={styles.ampmCol}>
