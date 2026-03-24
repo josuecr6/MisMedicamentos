@@ -1,3 +1,16 @@
+/**
+ * TimePicker — Material Design 2, reloj analógico
+ *
+ * Comportamiento fiel al spec:
+ *  1. Se abre mostrando el cuadrante de HORAS.
+ *  2. Al soltar el dedo (o confirmar la hora) pasa automáticamente a MINUTOS.
+ *  3. Las horas/minutos del header son tocables para volver al cuadrante.
+ *  4. AM / PM se cambia tocando el botón correspondiente.
+ *  5. Botones "Cancelar" y "Aceptar" al pie.
+ *
+ * Dependencias: react-native-svg (ya incluida en el proyecto).
+ * Sin librerías externas adicionales.
+ */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
@@ -5,308 +18,467 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
+  PanResponder,
 } from 'react-native';
+import Svg, { Circle, Line, G, Text as SvgText } from 'react-native-svg';
 import { COLORS } from '../utils/theme';
 
-const ITEM_HEIGHT   = 56;
-const VISIBLE_ITEMS = 5;
-const PADDING_ITEMS = Math.floor(VISIBLE_ITEMS / 2); // 2 items arriba/abajo
+// ─── Constantes del reloj ─────────────────────────────────────────────────────
+const CLOCK_SIZE   = 256;          // diámetro total del SVG
+const CX           = CLOCK_SIZE / 2;
+const CY           = CLOCK_SIZE / 2;
+const R_FACE       = CX - 4;      // radio de la esfera
+const R_NUMBERS    = CX - 32;     // radio donde van los números
+const R_TIP        = CX - 28;     // longitud de la manecilla
+const TIP_RADIUS   = 20;          // radio del círculo sobre el número activo
+const HOUR_LABELS  = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const MINUTE_MARKS = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,10…55
 
-const HOURS_LIST   = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-const MINUTES_LIST = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+// ─── Utilidades ───────────────────────────────────────────────────────────────
+function degToRad(deg) { return (deg * Math.PI) / 180; }
 
-function parseTime(val) {
-  if (!val) return { hour: '08', minute: '00', period: 'AM' };
+/** Ángulo en grados (0° = 12 en punto, crece en sentido horario) */
+function angleFromCenter(x, y) {
+  const dx = x - CX;
+  const dy = y - CY;
+  const raw = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+  return ((raw % 360) + 360) % 360;
+}
+
+/** Coordenadas cartesianas de un punto en el cuadrante */
+function polarToXY(angle, radius) {
+  const rad = degToRad(angle);
+  return { x: CX + radius * Math.sin(rad), y: CY - radius * Math.cos(rad) };
+}
+
+/** Parsea "08:00 AM" → { hour: 8, minute: 0, period: 'AM' } */
+function parseTime(val = '') {
   const [timePart = '08:00', period = 'AM'] = val.split(' ');
-  const [h = '08', m = '00'] = timePart.split(':');
-  const minuteNum = Math.round(parseInt(m, 10) / 5) * 5;
-  const minute    = String(minuteNum >= 60 ? 0 : minuteNum).padStart(2, '0');
-  return { hour: h.padStart(2, '0'), minute, period };
+  const [h = '8', m = '0'] = timePart.split(':');
+  const minuteRaw = Math.round(parseInt(m, 10) / 5) * 5;
+  return {
+    hour:   parseInt(h, 10) || 8,
+    minute: minuteRaw >= 60 ? 0 : minuteRaw,
+    period,
+  };
 }
 
 export function buildTimeString(hour, minute, period) {
-  return `${hour}:${minute} ${period}`;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
-// ─── Drum ────────────────────────────────────────────────────────────────────
-// Usa ScrollView simple sobre una lista FINITA.
-// El prop `resetKey` cambia cuando el modal abre, forzando remontaje
-// completo y eliminando cualquier posición residual de sesiones anteriores.
-function Drum({ items, selectedValue, onSelect, resetKey }) {
-  const scrollRef    = useRef(null);
-  const selectedIndex = Math.max(0, items.indexOf(selectedValue));
+// ─── Cuadrante analógico ──────────────────────────────────────────────────────
+function ClockDial({ mode, hour, minute, onHourChange, onMinuteChange, onRelease }) {
+  const svgRef = useRef(null);
+  // Posición del layout del SVG (se mide con onLayout)
+  const layoutRef = useRef({ x: 0, y: 0, width: CLOCK_SIZE, height: CLOCK_SIZE });
 
-  // Scroll al valor correcto cada vez que el modal se abre (resetKey cambia)
-  useEffect(() => {
-    const offset = selectedIndex * ITEM_HEIGHT;
-    const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: offset, animated: false });
-    }, 50);
-    return () => clearTimeout(t);
-  }, [resetKey, selectedIndex]);
+  // Ángulo activo de la manecilla
+  const activeAngle = mode === 'hour'
+    ? (hour % 12) * 30        // cada hora = 30°
+    : minute * 6;             // cada minuto = 6°
 
-  const snapToNearest = useCallback(
-    (offsetY) => {
-      const index         = Math.max(0, Math.min(Math.round(offsetY / ITEM_HEIGHT), items.length - 1));
-      const snappedOffset = index * ITEM_HEIGHT;
-      scrollRef.current?.scrollTo({ y: snappedOffset, animated: true });
-      onSelect(items[index]);
+  const tipPos = polarToXY(activeAngle, R_TIP);
+
+  /**
+   * Convierte coordenadas absolutas de pantalla a coordenadas internas del SVG
+   * teniendo en cuenta la escala (el SVG puede estar escalado si la pantalla
+   * es más pequeña que CLOCK_SIZE).
+   */
+  const screenToSVG = useCallback((pageX, pageY) => {
+    const { x, y, width } = layoutRef.current;
+    const scale = CLOCK_SIZE / width;        // factor de escala
+    return {
+      x: (pageX - x) * scale,
+      y: (pageY - y) * scale,
+    };
+  }, []);
+
+  const handleTouch = useCallback(
+    (pageX, pageY) => {
+      const { x, y } = screenToSVG(pageX, pageY);
+      const angle = angleFromCenter(x, y);
+
+      if (mode === 'hour') {
+        let h = Math.round(angle / 30) % 12;
+        if (h === 0) h = 12;
+        onHourChange(h);
+      } else {
+        const min = Math.round(angle / 6) % 60;
+        onMinuteChange(min);
+      }
     },
-    [items, onSelect]
+    [mode, onHourChange, onMinuteChange, screenToSVG],
   );
 
-  const onScrollEndDrag = useCallback(
-    (e) => snapToNearest(e.nativeEvent.contentOffset.y),
-    [snapToNearest]
-  );
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: (evt) => {
+        const { pageX, pageY } = evt.nativeEvent;
+        handleTouch(pageX, pageY);
+      },
+      onPanResponderMove: (evt) => {
+        const { pageX, pageY } = evt.nativeEvent;
+        handleTouch(pageX, pageY);
+      },
+      onPanResponderRelease: () => {
+        onRelease?.();
+      },
+    }),
+  ).current;
 
-  const onMomentumScrollEnd = useCallback(
-    (e) => snapToNearest(e.nativeEvent.contentOffset.y),
-    [snapToNearest]
-  );
+  // Actualizar handleTouch en panResponder cuando cambia mode/hour/minute
+  useEffect(() => {
+    panResponder.panHandlers.onStartShouldSetPanResponder = () => true;
+  });
+
+  // Reconstruir panResponder cuando cambia el modo
+  const panRef = useRef(null);
+  panRef.current = { handleTouch, onRelease };
+
+  const activePan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: (e) => panRef.current.handleTouch(e.nativeEvent.pageX, e.nativeEvent.pageY),
+      onPanResponderMove:  (e) => panRef.current.handleTouch(e.nativeEvent.pageX, e.nativeEvent.pageY),
+      onPanResponderRelease: ()  => panRef.current.onRelease?.(),
+    }),
+  ).current;
 
   return (
-    <View style={s.drumWrapper}>
-      {/* Highlight del ítem central — encima del scroll para que se vea */}
-      <View style={s.highlight} pointerEvents="none" />
+    <View
+      onLayout={(e) => {
+        e.target.measure((fx, fy, w, h, px, py) => {
+          layoutRef.current = { x: px, y: py, width: w, height: h };
+        });
+      }}
+      style={styles.dialWrapper}
+      {...activePan.panHandlers}
+    >
+      <Svg width={CLOCK_SIZE} height={CLOCK_SIZE} viewBox={`0 0 ${CLOCK_SIZE} ${CLOCK_SIZE}`}>
 
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={ITEM_HEIGHT}
-        decelerationRate="fast"
-        scrollEventThrottle={16}
-        onScrollEndDrag={onScrollEndDrag}
-        onMomentumScrollEnd={onMomentumScrollEnd}
-        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * PADDING_ITEMS }}
-      >
-        {items.map((item) => {
-          const isSelected = item === selectedValue;
-          return (
-            <View key={item} style={s.item}>
-              <Text style={[s.text, isSelected && s.textSelected]}>{item}</Text>
-            </View>
-          );
-        })}
-      </ScrollView>
+        {/* Esfera */}
+        <Circle cx={CX} cy={CY} r={R_FACE} fill={COLORS.secondary} />
+
+        {/* Línea de la manecilla */}
+        <Line
+          x1={CX} y1={CY}
+          x2={tipPos.x} y2={tipPos.y}
+          stroke={COLORS.accent}
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+
+        {/* Círculo activo sobre el número seleccionado */}
+        <Circle cx={tipPos.x} cy={tipPos.y} r={TIP_RADIUS} fill={COLORS.accent} />
+
+        {/* Números / marcas */}
+        {mode === 'hour'
+          ? HOUR_LABELS.map((h, i) => {
+              const pos    = polarToXY(i * 30, R_NUMBERS);
+              const active = h === hour;
+              return (
+                <G key={h}>
+                  <SvgText
+                    x={pos.x} y={pos.y}
+                    textAnchor="middle"
+                    alignmentBaseline="central"
+                    fontSize={15}
+                    fontWeight={active ? '600' : '400'}
+                    fill={active ? '#ffffff' : COLORS.text}
+                  >
+                    {h}
+                  </SvgText>
+                </G>
+              );
+            })
+          : MINUTE_MARKS.map((m, i) => {
+              const pos    = polarToXY(i * 30, R_NUMBERS);
+              const active = m === minute;
+              const showNum = i % 3 === 0; // 0, 15, 30, 45 llevan número
+
+              if (!showNum) {
+                // Punto pequeño para los minutos intermedios
+                return (
+                  <Circle
+                    key={m}
+                    cx={pos.x} cy={pos.y}
+                    r={active ? TIP_RADIUS : 3}
+                    fill={active ? COLORS.accent : COLORS.textMuted}
+                    opacity={active ? 1 : 0.5}
+                  />
+                );
+              }
+
+              return (
+                <G key={m}>
+                  <SvgText
+                    x={pos.x} y={pos.y}
+                    textAnchor="middle"
+                    alignmentBaseline="central"
+                    fontSize={14}
+                    fontWeight={active ? '600' : '400'}
+                    fill={active ? '#ffffff' : COLORS.text}
+                  >
+                    {String(m).padStart(2, '0')}
+                  </SvgText>
+                </G>
+              );
+            })
+        }
+
+        {/* Punto central */}
+        <Circle cx={CX} cy={CY} r={5} fill={COLORS.accent} />
+
+      </Svg>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  drumWrapper: {
-    height: ITEM_HEIGHT * VISIBLE_ITEMS,
-    width: 84,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  highlight: {
-    position: 'absolute',
-    top: ITEM_HEIGHT * PADDING_ITEMS,
-    left: 0,
-    right: 0,
-    height: ITEM_HEIGHT,
-    backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    zIndex: 1,
-  },
-  item: {
-    height: ITEM_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: COLORS.textMuted,
-  },
-  textSelected: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.accent,
-  },
-});
-
-// ─── TimePicker ──────────────────────────────────────────────────────────────
+// ─── TimePicker principal ─────────────────────────────────────────────────────
 export default function TimePicker({ value, onChange, visible, onClose }) {
-  const [selHour,   setSelHour]   = useState('08');
-  const [selMinute, setSelMinute] = useState('00');
-  const [selPeriod, setSelPeriod] = useState('AM');
-  const [resetKey,  setResetKey]  = useState(0);
+  const parsed = parseTime(value);
+  const [hour,   setHour]   = useState(parsed.hour);
+  const [minute, setMinute] = useState(parsed.minute);
+  const [period, setPeriod] = useState(parsed.period);
+  const [mode,   setMode]   = useState('hour'); // 'hour' | 'min'
 
-  // Cuando el modal se abre: parsea el valor nuevo y reinicia los drums
+  // Sincronizar al abrir
   useEffect(() => {
     if (!visible) return;
-    const { hour, minute, period } = parseTime(value);
-    setSelHour(hour);
-    setSelMinute(minute);
-    setSelPeriod(period);
-    // Incrementar resetKey fuerza remontaje de los Drum con el valor correcto
-    setResetKey((k) => k + 1);
-  }, [visible]); // solo reacciona a visible, no a value
+    const next = parseTime(value);
+    setHour(next.hour);
+    setMinute(next.minute);
+    setPeriod(next.period);
+    setMode('hour'); // siempre empieza en horas
+  }, [value, visible]);
 
-  const handleConfirm = () => {
-    onChange(buildTimeString(selHour, selMinute, selPeriod));
+  // Al soltar el dedo en modo hora → pasar automáticamente a minutos
+  const handleDialRelease = useCallback(() => {
+    if (mode === 'hour') setMode('min');
+  }, [mode]);
+
+  const handleConfirm = useCallback(() => {
+    onChange(buildTimeString(hour, minute, period));
     onClose();
-  };
+  }, [onChange, onClose, hour, minute, period]);
+
+  const hourDisplay   = String(hour).padStart(2, '0');
+  const minuteDisplay = String(minute).padStart(2, '0');
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Seleccionar hora</Text>
 
-          <View style={styles.pickerRow}>
-            {/* key cambia con resetKey → remonta el Drum completamente */}
-            <Drum
-              key={`hour-${resetKey}`}
-              items={HOURS_LIST}
-              selectedValue={selHour}
-              onSelect={setSelHour}
-              resetKey={resetKey}
-            />
+          {/* ── Header de color (muestra hora seleccionada) ── */}
+          <View style={styles.header}>
+            <Text style={styles.headerLabel}>SELECCIONAR HORA</Text>
 
-            <Text style={styles.separator}>:</Text>
-
-            <Drum
-              key={`min-${resetKey}`}
-              items={MINUTES_LIST}
-              selectedValue={selMinute}
-              onSelect={setSelMinute}
-              resetKey={resetKey}
-            />
-
-            <View style={styles.ampmCol}>
+            <View style={styles.timeRow}>
+              {/* Hora */}
               <TouchableOpacity
-                style={[styles.ampmBtn, selPeriod === 'AM' && styles.ampmActive]}
-                onPress={() => setSelPeriod('AM')}
+                style={[styles.timePart, mode === 'hour' && styles.timePartActive]}
+                onPress={() => setMode('hour')}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.ampmText, selPeriod === 'AM' && styles.ampmTextActive]}>
-                  AM
-                </Text>
+                <Text style={styles.timeText}>{hourDisplay}</Text>
               </TouchableOpacity>
+
+              <Text style={styles.timeSep}>:</Text>
+
+              {/* Minuto */}
               <TouchableOpacity
-                style={[styles.ampmBtn, selPeriod === 'PM' && styles.ampmActive]}
-                onPress={() => setSelPeriod('PM')}
+                style={[styles.timePart, mode === 'min' && styles.timePartActive]}
+                onPress={() => setMode('min')}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.ampmText, selPeriod === 'PM' && styles.ampmTextActive]}>
-                  PM
-                </Text>
+                <Text style={styles.timeText}>{minuteDisplay}</Text>
               </TouchableOpacity>
+
+              {/* AM / PM */}
+              <View style={styles.ampmCol}>
+                <TouchableOpacity
+                  style={[styles.ampmBtn, period === 'AM' && styles.ampmBtnActive]}
+                  onPress={() => setPeriod('AM')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.ampmText, period === 'AM' && styles.ampmTextActive]}>AM</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.ampmBtn, period === 'PM' && styles.ampmBtnActive]}
+                  onPress={() => setPeriod('PM')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.ampmText, period === 'PM' && styles.ampmTextActive]}>PM</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
+          {/* ── Cuadrante analógico ── */}
+          <View style={styles.dialArea}>
+            <ClockDial
+              mode={mode}
+              hour={hour}
+              minute={minute}
+              onHourChange={setHour}
+              onMinuteChange={setMinute}
+              onRelease={handleDialRelease}
+            />
+          </View>
+
+          {/* ── Botones ── */}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.btnCancel} onPress={onClose}>
+            <TouchableOpacity style={styles.btnCancel} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.btnCancelText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnConfirm} onPress={handleConfirm}>
-              <Text style={styles.btnConfirmText}>Confirmar</Text>
+            <TouchableOpacity style={styles.btnOk} onPress={handleConfirm} activeOpacity={0.85}>
+              <Text style={styles.btnOkText}>Aceptar</Text>
             </TouchableOpacity>
           </View>
+
         </View>
       </View>
     </Modal>
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
   sheet: {
     backgroundColor: COLORS.bgCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 20,
+    overflow: 'hidden',
+    width: '100%',
+    maxWidth: 328,
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+  },
+
+  // Header
+  header: {
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: COLORS.surface,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.surface,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-    textAlign: 'center',
+  headerLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
     marginBottom: 8,
-    letterSpacing: -0.3,
   },
-  pickerRow: {
+  timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.secondary,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-    marginVertical: 16,
   },
-  separator: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    marginBottom: 4,
+  timePart: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  timePartActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  timeText: {
+    color: '#ffffff',
+    fontSize: 52,
+    fontWeight: '300',
+    lineHeight: 60,
+  },
+  timeSep: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 52,
+    fontWeight: '300',
+    lineHeight: 60,
+    marginHorizontal: 2,
   },
   ampmCol: {
-    alignItems: 'center',
-    gap: 8,
-    marginLeft: 8,
+    marginLeft: 10,
+    alignSelf: 'center',
+    gap: 4,
+    flexDirection: 'column',
   },
   ampmBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
-  ampmActive: {
-    backgroundColor: COLORS.accent,
+  ampmBtnActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderColor: 'transparent',
   },
   ampmText: {
-    color: COLORS.textMuted,
-    fontWeight: '700',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontWeight: '600',
   },
   ampmTextActive: {
     color: '#ffffff',
   },
+
+  // Cuadrante
+  dialArea: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    backgroundColor: COLORS.bgCard,
+  },
+  dialWrapper: {
+    width: CLOCK_SIZE,
+    height: CLOCK_SIZE,
+  },
+
+  // Botones
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.bgCard,
   },
   btnCancel: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surface,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   btnCancelText: {
-    color: COLORS.text,
+    color: COLORS.accent,
+    fontSize: 14,
     fontWeight: '600',
   },
-  btnConfirm: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+  btnOk: {
     backgroundColor: COLORS.accent,
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
-  btnConfirmText: {
+  btnOkText: {
     color: '#ffffff',
+    fontSize: 14,
     fontWeight: '700',
   },
 });
