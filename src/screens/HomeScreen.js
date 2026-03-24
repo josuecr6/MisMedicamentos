@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -30,11 +32,62 @@ function LogoutIcon() {
   );
 }
 
+function LogoBadgePulse() {
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.4],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 0],
+  });
+
+  return (
+    <View style={styles.logoWrapper}>
+      <Text style={styles.logoMis}>Mis</Text>
+      <Text style={styles.logoMedicamentos}>Medicamentos</Text>
+      <View style={styles.badgeContainer}>
+        <Animated.View
+          style={[
+            styles.badgePulse,
+            {
+              transform: [{ scale: pulseScale }],
+              opacity: pulseOpacity,
+            },
+          ]}
+        />
+        <View style={styles.badgeCore} />
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen({ navigation }) {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
   const today = useTodayKey();
-  // Un solo intervalo para toda la lista — refresca cada 30 seg
   const now = useCurrentTime(30000);
 
   useEffect(() => {
@@ -78,7 +131,6 @@ export default function HomeScreen({ navigation }) {
     );
   }, []);
 
-  // `now` se pasa como prop para que cada card se re-renderice cuando cambia
   const renderItem = useCallback(
     ({ item }) => (
       <MedicationCard
@@ -96,7 +148,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={commonStyles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Medicamentos</Text>
+        <LogoBadgePulse />
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <LogoutIcon />
         </TouchableOpacity>
@@ -132,10 +184,46 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginBottom: 24,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
+  logoWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    paddingRight: 24,
+  },
+  logoMis: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -1,
+    marginRight: 6,
+  },
+  logoMedicamentos: {
+    color: COLORS.accent,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -4,
+    right: 0,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgePulse: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.danger,
+  },
+  badgeCore: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.danger,
   },
   logoutButton: {
     width: 38,

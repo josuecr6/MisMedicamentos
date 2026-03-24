@@ -12,7 +12,6 @@ import { COLORS } from '../utils/theme';
 const ITEM_HEIGHT = 56;
 const VISIBLE_ITEMS = 5;
 const REPEAT = 100;
-// Dos ítems de padding arriba y abajo para que el primero/último pueda centrarse
 const PADDING_ITEMS = 2;
 const SPACER_HEIGHT = ITEM_HEIGHT * PADDING_ITEMS;
 
@@ -38,12 +37,6 @@ function getCenterIndex(base, value) {
   return Math.floor(REPEAT / 2) * base.length + safeIdx;
 }
 
-// Offset exacto: el ítem en `index` queda en el centro de la ventana visible.
-// La ventana tiene VISIBLE_ITEMS ítems; el centro es PADDING_ITEMS desde arriba.
-// Con el espaciador, el ítem 0 empieza en y = SPACER_HEIGHT.
-// Para que el ítem `index` quede centrado: offset = SPACER_HEIGHT + index * ITEM_HEIGHT - PADDING_ITEMS * ITEM_HEIGHT
-// Simplificado: offset = (index - PADDING_ITEMS) * ITEM_HEIGHT + SPACER_HEIGHT
-// Como SPACER_HEIGHT = PADDING_ITEMS * ITEM_HEIGHT → offset = index * ITEM_HEIGHT
 function getScrollOffset(index) {
   return index * ITEM_HEIGHT;
 }
@@ -68,49 +61,61 @@ const Spacer = () => <View style={{ height: SPACER_HEIGHT }} />;
 
 function Drum({ base, keys, selectedValue, onSelect }) {
   const ref = useRef(null);
-  const isScrolling = useRef(false);
+  const isDragging = useRef(false);
+  const currentIndex = useRef(getCenterIndex(base, selectedValue));
 
+  // Scroll al índice correcto cuando se monta o cambia selectedValue externamente
   useEffect(() => {
     const index = getCenterIndex(base, selectedValue);
+    currentIndex.current = index;
     const offset = getScrollOffset(index);
     const timer = setTimeout(() => {
       ref.current?.scrollToOffset({ offset, animated: false });
-    }, 100);
+    }, 80);
     return () => clearTimeout(timer);
   }, []);
 
-  const snapToNearest = useCallback(
-    (y) => {
-      const idx = Math.round(y / ITEM_HEIGHT);
-      const clampedIdx = Math.max(0, idx);
-      const mod = ((clampedIdx % base.length) + base.length) % base.length;
-      onSelect(base[mod]);
+  const snapToIndex = useCallback(
+    (rawOffset) => {
+      // Calcula el índice más cercano al offset actual
+      const index = Math.round(rawOffset / ITEM_HEIGHT);
+      const clampedIndex = Math.max(0, index);
+
+      // Calcula el valor en base al módulo
+      const mod = ((clampedIndex % base.length) + base.length) % base.length;
+      const value = base[mod];
+
+      // Snap al offset exacto para evitar que quede a medio camino
+      const snappedOffset = getScrollOffset(clampedIndex);
+      ref.current?.scrollToOffset({ offset: snappedOffset, animated: true });
+
+      currentIndex.current = clampedIndex;
+      onSelect(value);
     },
     [base, onSelect]
   );
 
-  const onMomentumScrollEnd = useCallback(
-    (e) => {
-      isScrolling.current = false;
-      snapToNearest(e.nativeEvent.contentOffset.y);
-    },
-    [snapToNearest]
-  );
+  const onScrollBeginDrag = useCallback(() => {
+    isDragging.current = true;
+  }, []);
 
   const onScrollEndDrag = useCallback(
     (e) => {
-      if (!isScrolling.current) {
-        snapToNearest(e.nativeEvent.contentOffset.y);
-      }
+      isDragging.current = false;
+      snapToIndex(e.nativeEvent.contentOffset.y);
     },
-    [snapToNearest]
+    [snapToIndex]
   );
 
-  const onMomentumScrollBegin = useCallback(() => {
-    isScrolling.current = true;
-  }, []);
+  const onMomentumScrollEnd = useCallback(
+    (e) => {
+      if (!isDragging.current) {
+        snapToIndex(e.nativeEvent.contentOffset.y);
+      }
+    },
+    [snapToIndex]
+  );
 
-  // getItemLayout debe incluir el SPACER_HEIGHT del header
   const getItemLayout = useCallback(
     (_, index) => ({
       length: ITEM_HEIGHT,
@@ -136,7 +141,6 @@ function Drum({ base, keys, selectedValue, onSelect }) {
 
   return (
     <View style={s.drumWrapper}>
-      {/* Recuadro selector siempre detrás de los números */}
       <View style={s.selectorBackground} pointerEvents="none" />
       <FlatList
         ref={ref}
@@ -148,9 +152,9 @@ function Drum({ base, keys, selectedValue, onSelect }) {
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
-        onMomentumScrollBegin={onMomentumScrollBegin}
-        onMomentumScrollEnd={onMomentumScrollEnd}
+        onScrollBeginDrag={onScrollBeginDrag}
         onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollEnd={onMomentumScrollEnd}
         windowSize={7}
         maxToRenderPerBatch={20}
         initialNumToRender={VISIBLE_ITEMS + 4}
